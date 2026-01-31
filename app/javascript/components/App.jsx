@@ -1,12 +1,15 @@
 import React from 'react';
+import MainPage from './MainPage';
+import FormBuilderPage from './FormBuilderPage';
 
 function App() {
-  return (
-    <div className="app">
-      <h1>Welcome to React + Rails</h1>
-      <p>Your React app is now running!</p>
-    </div>
-  );
+  const currentPath = window.location.pathname;
+  
+  if (currentPath === '/forms/builder') {
+    return <FormBuilderPage />;
+  }
+  
+  return <MainPage />;
 }
 
 export default App;

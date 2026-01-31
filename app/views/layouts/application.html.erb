@@ -14,13 +14,215 @@
     <%# Enable PWA manifest for installable apps (make sure to enable in config/routes.rb too!) %>
     <%#= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
 
-    <link rel="icon" href="/icon.png" type="image/png">
-    <link rel="icon" href="/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/icon.png">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="/logo.png">
 
     <%# Includes all stylesheet files in app/assets/stylesheets %>
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
     <%= javascript_include_tag "application", "data-turbo-track": "reload", type: "module" %>
+    
+    <style>
+      @keyframes float {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        33% { transform: translate(30px, -30px) scale(1.1); }
+        66% { transform: translate(-20px, 20px) scale(0.9); }
+      }
+      
+      @keyframes blobExpand {
+        0% {
+          transform: scale(0);
+          opacity: 1;
+          filter: blur(40px);
+        }
+        40% {
+          transform: scale(1.5);
+          opacity: 0.9;
+          filter: blur(50px);
+        }
+        100% {
+          transform: scale(25);
+          opacity: 0;
+          filter: blur(80px);
+        }
+      }
+      
+      @keyframes fadeOut {
+        to {
+          opacity: 0;
+          visibility: hidden;
+        }
+      }
+      
+      @keyframes expandPanel {
+        0% {
+          width: 420px;
+        }
+        100% {
+          width: 100vw;
+        }
+      }
+      
+      @keyframes expandPanelClip {
+        0% {
+          clip-path: inset(0 calc(100% - 420px) 0 0);
+        }
+        100% {
+          clip-path: inset(0 0 0 0);
+        }
+      }
+      
+      @keyframes shrinkPanel {
+        0% {
+          width: 100vw;
+          min-width: 100vw;
+          max-width: 100vw;
+        }
+        100% {
+          width: 420px;
+          min-width: 420px;
+          max-width: 420px;
+        }
+      }
+      
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      
+      @keyframes fadeOutContent {
+        0% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+      
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      
+      input:focus {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+      }
+      
+      button:hover {
+        background: #2563eb !important;
+      }
+      
+      button.logout-btn:hover {
+        background: #bfdbfe !important;
+      }
+      
+      nav button:not(.logout-btn):hover {
+        background: #f3f4f6 !important;
+      }
+      
+      button:active {
+        background: #1d4ed8 !important;
+      }
+      
+      * {
+        outline: none !important;
+      }
+      
+      *:focus {
+        outline: none !important;
+        box-shadow: none !important;
+      }
+      
+      a:hover {
+        text-decoration: underline;
+      }
+      
+      @media (max-width: 768px) {
+        * {
+          box-sizing: border-box !important;
+        }
+        
+        .left-panel {
+          width: 100vw !important;
+          min-width: 100vw !important;
+          max-width: 100vw !important;
+          padding: 30px 20px !important;
+          background-image: url(/bg.jpg) !important;
+          background-size: cover !important;
+          background-position: center !important;
+          overflow-x: hidden !important;
+        }
+        
+        .left-panel::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(255, 255, 255, 0.92);
+          z-index: 0;
+        }
+        
+        .left-panel > * {
+          position: relative;
+          z-index: 1;
+        }
+        
+        .right-panel {
+          display: none !important;
+        }
+        
+        .app-logo {
+          position: static !important;
+          margin-bottom: 40px !important;
+        }
+        
+        .app-title {
+          font-size: 28px !important;
+          margin-bottom: 40px !important;
+          margin-top: 60px !important;
+        }
+        
+        .app-card {
+          max-width: 100% !important;
+          width: 100% !important;
+          padding: 0 !important;
+        }
+        
+        .app-card form,
+        .app-card > div {
+          width: 100% !important;
+        }
+        
+        .app-card input {
+          width: 100% !important;
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+        }
+        
+        .app-card button {
+          width: 100% !important;
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+        }
+        
+        .expanding-overlay {
+          clip-path: inset(0 0 0 0) !important;
+        }
+        
+        @keyframes expandPanelClip {
+          0% {
+            clip-path: inset(0 0 0 0);
+          }
+          100% {
+            clip-path: inset(0 0 0 0);
+          }
+        }
+      }
+    </style>
   </head>
 
   <body>

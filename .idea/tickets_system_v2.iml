@@ -67,6 +67,7 @@
     <orderEntry type="library" scope="PROVIDED" name="ffi (v1.17.3, mise: 3.4.8) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="fugit (v1.12.1, mise: 3.4.8) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="globalid (v1.3.0, mise: 3.4.8) [gem]" level="application" />
+    <orderEntry type="library" scope="PROVIDED" name="hiredis (v0.6.3, mise: 3.4.8) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="i18n (v1.14.8, mise: 3.4.8) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="image_processing (v1.14.0, mise: 3.4.8) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="io-console (v0.8.2, mise: 3.4.8) [gem]" level="application" />
@@ -119,6 +120,9 @@
     <orderEntry type="library" scope="PROVIDED" name="rainbow (v3.1.1, mise: 3.4.8) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="rake (v13.3.1, mise: 3.4.8) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="rdoc (v7.1.0, mise: 3.4.8) [gem]" level="application" />
+    <orderEntry type="library" scope="PROVIDED" name="redis (v5.4.1, mise: 3.4.8) [gem]" level="application" />
+    <orderEntry type="library" scope="PROVIDED" name="redis-client (v0.26.4, mise: 3.4.8) [gem]" level="application" />
+    <orderEntry type="library" scope="PROVIDED" name="redis-session-store (v0.11.6, mise: 3.4.8) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="regexp_parser (v2.11.3, mise: 3.4.8) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="reline (v0.6.3, mise: 3.4.8) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="rexml (v3.4.4, mise: 3.4.8) [gem]" level="application" />
