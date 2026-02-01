@@ -19,4 +19,8 @@ Rails.application.routes.draw do
   get "api/forms/one" => "forms#fetch_one"
   post "api/forms/update" => "forms#update"
   delete "api/forms/delete" => "forms#delete"
+
+  # -------------- APP CONFIG --------------
+  get "api/state" => "app_config#state"
+  get "api/version" => "app_config#version"
 end

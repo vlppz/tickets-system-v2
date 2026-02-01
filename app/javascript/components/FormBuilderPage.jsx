@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { GripVertical, Plus, Trash2, Save, Type, Hash, ChevronDown, CheckSquare, AlignLeft, Eye, Settings } from 'lucide-react';
+import { GripVertical, Plus, Trash2, Save, Type, Hash, ChevronDown, CheckSquare, AlignLeft, Settings, X, ChevronUp, ChevronDown as ChevronDownIcon } from 'lucide-react';
 import Navbar from './Navbar';
 import LoginPage from './LoginPage';
+import Footer from './Footer';
 
 function FormBuilderPage() {
   const [user, setUser] = useState(null);
@@ -18,9 +19,120 @@ function FormBuilderPage() {
   const [selectedFields, setSelectedFields] = useState(new Set());
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState(null);
+  const [showComponentsSidebar, setShowComponentsSidebar] = useState(false);
+  const [showPropertiesSidebar, setShowPropertiesSidebar] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    // Add custom checkbox styles
+    const styleSheet = document.createElement('style');
+    styleSheet.textContent = `
+      .custom-checkbox-input-builder {
+        position: absolute;
+        opacity: 0;
+        cursor: pointer;
+      }
+      .custom-checkbox-builder {
+        position: relative;
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        background-color: #ffffff;
+        border: 2px solid #d1d5db;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+      }
+      .custom-checkbox-input-builder:checked + .custom-checkbox-builder {
+        background-color: #3b82f6;
+        border-color: #3b82f6;
+      }
+      .custom-checkbox-input-builder:checked + .custom-checkbox-builder::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -60%) rotate(45deg);
+        width: 3.5px;
+        height: 7px;
+        border: solid white;
+        border-width: 0 2px 2px 0;
+      }
+      .custom-checkbox-input-builder:focus + .custom-checkbox-builder {
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+      .custom-checkbox-input-builder:hover + .custom-checkbox-builder {
+        border-color: #9ca3af;
+      }
+      
+      /* Remove all tap highlights globally - NUCLEAR OPTION */
+      *,
+      *::before,
+      *::after {
+        -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
+        -webkit-tap-highlight-color: transparent !important;
+        -webkit-touch-callout: none !important;
+        tap-highlight-color: transparent !important;
+      }
+      
+      /* Prevent SVG icons from being tap targets */
+      svg, svg *, path, circle, rect, line, polyline, polygon {
+        pointer-events: none !important;
+        -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
+      }
+      
+      /* Fix button tap colors - use gray instead of blue */
+      .mobile-header-btn,
+      .mobile-header-btn *,
+      .mobile-reorder-btn,
+      .mobile-reorder-btn * {
+        -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
+      }
+      
+      .mobile-header-btn:active {
+        background-color: #e5e7eb !important;
+        transform: scale(0.95);
+      }
+      .mobile-reorder-btn:active:not(:disabled) {
+        background-color: #e5e7eb !important;
+        transform: scale(0.95);
+      }
+      
+      /* Override any button active states */
+      button,
+      button *,
+      button:active,
+      button:focus {
+        outline: none !important;
+        -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
+        -webkit-tap-highlight-color: transparent !important;
+      }
+      
+      /* Ensure buttons themselves are tap targets */
+      button {
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      
+      input, textarea {
+        -webkit-user-select: text !important;
+      }
+    `;
+    document.head.appendChild(styleSheet);
+    
+    // Check if mobile
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
     checkAuth();
+    
+    return () => {
+      document.head.removeChild(styleSheet);
+      window.removeEventListener('resize', checkMobile);
+    };
   }, []);
 
   useEffect(() => {
@@ -118,6 +230,22 @@ function FormBuilderPage() {
 
   const removeField = (index) => {
     setFields(fields.filter((_, i) => i !== index));
+  };
+
+  const moveFieldUp = (index) => {
+    if (index === 0) return;
+    const newFields = [...fields];
+    [newFields[index - 1], newFields[index]] = [newFields[index], newFields[index - 1]];
+    setFields(newFields);
+    setSelectedFieldIndex(index - 1);
+  };
+
+  const moveFieldDown = (index) => {
+    if (index === fields.length - 1) return;
+    const newFields = [...fields];
+    [newFields[index], newFields[index + 1]] = [newFields[index + 1], newFields[index]];
+    setFields(newFields);
+    setSelectedFieldIndex(index + 1);
   };
 
   const addOption = (index) => {
@@ -356,11 +484,24 @@ function FormBuilderPage() {
     }}>
       <Navbar user={user} onLogout={handleLogout} currentPage="forms" onNavigate={handleNavigate} />
       
-      <div style={styles.builderLayout}>
+      <div style={isMobile ? styles.builderLayoutMobile : styles.builderLayout}>
         {/* Left Sidebar - Components */}
-        <div style={styles.sidebar}>
+        <div style={{
+          ...styles.sidebar,
+          ...(isMobile ? styles.sidebarMobile : {}),
+          ...(isMobile && showComponentsSidebar ? styles.sidebarMobileOpen : {}),
+          ...(isMobile && !showComponentsSidebar ? styles.sidebarMobileHidden : {})
+        }}>
           <div style={styles.sidebarHeader}>
             <h3 style={styles.sidebarTitle}>Компоненты</h3>
+            {isMobile && (
+              <button
+                onClick={() => setShowComponentsSidebar(false)}
+                style={styles.closeSidebarButton}
+              >
+                <X size={20} />
+              </button>
+            )}
           </div>
           
           <div style={styles.componentsSection}>
@@ -371,10 +512,31 @@ function FormBuilderPage() {
                 return (
                   <div
                     key={component.type}
-                    draggable
-                    onDragStart={(e) => handleComponentDragStart(e, component.type)}
+                    draggable={!isMobile}
+                    onDragStart={(e) => !isMobile && handleComponentDragStart(e, component.type)}
                     onDragEnd={handleComponentDragEnd}
-                    style={styles.componentButton}
+                    onClick={() => {
+                      if (isMobile) {
+                        // On mobile, clicking adds the field directly
+                        const newField = {
+                          id: `field_${Date.now()}`,
+                          label: '',
+                          type: component.type,
+                          required: false,
+                          description: '',
+                          options: component.type === 'select' ? [''] : [],
+                          requirementCondition: null
+                        };
+                        setFields([...fields, newField]);
+                        setShowComponentsSidebar(false);
+                        setSelectedFieldIndex(fields.length);
+                        setShowPropertiesSidebar(true);
+                      }
+                    }}
+                    style={{
+                      ...styles.componentButton,
+                      ...(isMobile ? { cursor: 'pointer' } : {})
+                    }}
                     className="component-draggable"
                   >
                     <div style={styles.componentIcon}>
@@ -393,26 +555,51 @@ function FormBuilderPage() {
 
         {/* Center - Form Canvas */}
         <div style={styles.canvas}>
-          <div style={styles.canvasHeader}>
+          <div style={isMobile ? styles.canvasHeaderMobile : styles.canvasHeader}>
+            {isMobile && (
+              <div style={styles.mobileHeaderButtons}>
+                <button
+                  onClick={() => {
+                    setShowComponentsSidebar(true);
+                    setShowPropertiesSidebar(false);
+                  }}
+                  style={styles.mobileHeaderButton}
+                  className="mobile-header-btn"
+                  title="Компоненты"
+                >
+                  <Plus size={20} />
+                </button>
+                {selectedFieldIndex !== null && (
+                  <button
+                    onClick={() => {
+                      setShowPropertiesSidebar(true);
+                      setShowComponentsSidebar(false);
+                    }}
+                    style={styles.mobileHeaderButton}
+                    className="mobile-header-btn"
+                    title="Свойства"
+                  >
+                    <Settings size={20} />
+                  </button>
+                )}
+              </div>
+            )}
             <input
               type="text"
               placeholder="Название формы"
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
-              style={styles.formTitleInput}
+              style={isMobile ? styles.formTitleInputMobile : styles.formTitleInput}
               required
             />
             <div style={styles.canvasActions}>
-              <button type="button" style={styles.previewButton} data-hover="gray">
-                <Eye size={18} />
-                <span>Предпросмотр</span>
-              </button>
               <button
                 type="button"
                 onClick={handleSubmit}
                 disabled={submitting || fields.length === 0}
                 style={{
                   ...styles.publishButton,
+                  ...(isMobile ? styles.publishButtonMobile : {}),
                   ...(submitting || fields.length === 0 ? styles.publishButtonDisabled : {})
                 }}
                 {...(!(submitting || fields.length === 0) && { 'data-hover': 'blue' })}
@@ -420,12 +607,12 @@ function FormBuilderPage() {
                 {submitting ? (
                   <>
                     <div style={styles.spinner}></div>
-                    <span>Сохранение...</span>
+                    {!isMobile && <span>Сохранение...</span>}
                   </>
                 ) : (
                   <>
                     <Save size={18} />
-                    <span>Опубликовать</span>
+                    {!isMobile && <span>Опубликовать</span>}
                   </>
                 )}
               </button>
@@ -466,7 +653,12 @@ function FormBuilderPage() {
                       index={index}
                       isSelected={selectedFieldIndex === index || selectedFields.has(index)}
                       onClick={(e) => {
-                        if (e.shiftKey && selectedFieldIndex !== null) {
+                        if (isMobile) {
+                          // On mobile, clicking opens properties
+                          setSelectedFieldIndex(index);
+                          setSelectedFields(new Set());
+                          setShowPropertiesSidebar(true);
+                        } else if (e.shiftKey && selectedFieldIndex !== null) {
                           // Shift+click: select range
                           const start = Math.min(selectedFieldIndex, index);
                           const end = Math.max(selectedFieldIndex, index);
@@ -494,6 +686,11 @@ function FormBuilderPage() {
                       onDragStart={handleFieldDragStart}
                       onDragEnd={handleFieldDragEnd}
                       isDragging={draggedIndex === index}
+                      isMobile={isMobile}
+                      onMoveUp={() => moveFieldUp(index)}
+                      onMoveDown={() => moveFieldDown(index)}
+                      canMoveUp={index > 0}
+                      canMoveDown={index < fields.length - 1}
                     />
                   </React.Fragment>
                 ))}
@@ -521,10 +718,23 @@ function FormBuilderPage() {
         </div>
 
         {/* Right Sidebar - Properties */}
-        <div style={styles.propertiesPanel}>
+        <div style={{
+          ...styles.propertiesPanel,
+          ...(isMobile ? styles.propertiesPanelMobile : {}),
+          ...(isMobile && showPropertiesSidebar ? styles.propertiesPanelMobileOpen : {}),
+          ...(isMobile && !showPropertiesSidebar ? styles.propertiesPanelMobileHidden : {})
+        }}>
           <div style={styles.propertiesPanelHeader}>
             <Settings size={18} />
             <h3 style={styles.propertiesPanelTitle}>Свойства</h3>
+            {isMobile && (
+              <button
+                onClick={() => setShowPropertiesSidebar(false)}
+                style={styles.closeSidebarButton}
+              >
+                <X size={20} />
+              </button>
+            )}
           </div>
           
           {selectedFields.size > 0 ? (
@@ -572,11 +782,13 @@ function FormBuilderPage() {
           )}
         </div>
       </div>
+      
+      <Footer />
     </div>
   );
 }
 
-function FormFieldCard({ field, index, isSelected, onClick, onDragStart, onDragEnd, isDragging }) {
+function FormFieldCard({ field, index, isSelected, onClick, onDragStart, onDragEnd, isDragging, isMobile, onMoveUp, onMoveDown, canMoveUp, canMoveDown }) {
   const getFieldIcon = (type) => {
     switch (type) {
       case 'text': return Type;
@@ -592,8 +804,8 @@ function FormFieldCard({ field, index, isSelected, onClick, onDragStart, onDragE
 
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart(e, index)}
+      draggable={!isMobile}
+      onDragStart={(e) => !isMobile && onDragStart(e, index)}
       onDragEnd={onDragEnd}
       onClick={onClick}
       tabIndex={-1}
@@ -604,9 +816,11 @@ function FormFieldCard({ field, index, isSelected, onClick, onDragStart, onDragE
         ...(isDragging ? styles.fieldCardDragging : {})
       }}
     >
-      <div style={styles.fieldCardDragHandle}>
-        <GripVertical size={16} color="#9ca3af" />
-      </div>
+      {!isMobile && (
+        <div style={styles.fieldCardDragHandle}>
+          <GripVertical size={16} color="#9ca3af" />
+        </div>
+      )}
       <div style={styles.fieldCardContent}>
         <div style={styles.fieldCardHeader}>
           <div style={styles.fieldCardIcon}>
@@ -623,6 +837,38 @@ function FormFieldCard({ field, index, isSelected, onClick, onDragStart, onDragE
           <div style={styles.fieldCardDescription}>{field.description}</div>
         )}
       </div>
+      {isMobile && (
+        <div style={styles.mobileReorderButtons}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveUp();
+            }}
+            disabled={!canMoveUp}
+            className="mobile-reorder-btn"
+            style={{
+              ...styles.mobileReorderButton,
+              ...(canMoveUp ? {} : styles.mobileReorderButtonDisabled)
+            }}
+          >
+            <ChevronUp size={18} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveDown();
+            }}
+            disabled={!canMoveDown}
+            className="mobile-reorder-btn"
+            style={{
+              ...styles.mobileReorderButton,
+              ...(canMoveDown ? {} : styles.mobileReorderButtonDisabled)
+            }}
+          >
+            <ChevronDownIcon size={18} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -709,8 +955,10 @@ function FieldProperties({ field, index, fields, updateField, removeField, addOp
             type="checkbox"
             checked={field.required}
             onChange={(e) => updateField(index, { required: e.target.checked })}
-            style={styles.propertyCheckbox}
+            style={styles.propertyCheckboxInput}
+            className="custom-checkbox-input-builder"
           />
+          <span className="custom-checkbox-builder"></span>
           <span>Обязательное поле</span>
         </label>
       </div>
@@ -790,6 +1038,13 @@ const styles = {
     overflow: 'hidden',
     height: 'calc(100vh - 64px)'
   },
+  builderLayoutMobile: {
+    display: 'flex',
+    flex: 1,
+    overflow: 'hidden',
+    height: 'calc(100vh - 64px)',
+    position: 'relative'
+  },
   
   // Left Sidebar - Components
   sidebar: {
@@ -800,9 +1055,28 @@ const styles = {
     flexDirection: 'column',
     overflow: 'hidden'
   },
+  sidebarMobile: {
+    position: 'fixed',
+    top: '64px',
+    left: 0,
+    bottom: 0,
+    width: '100%',
+    zIndex: 200,
+    transition: 'transform 0.3s ease-out',
+    borderRight: 'none'
+  },
+  sidebarMobileOpen: {
+    transform: 'translateX(0)'
+  },
+  sidebarMobileHidden: {
+    transform: 'translateX(-100%)'
+  },
   sidebarHeader: {
     padding: '20px',
-    borderBottom: '1px solid #e5e7eb'
+    borderBottom: '1px solid #e5e7eb',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
   },
   sidebarTitle: {
     fontSize: '16px',
@@ -884,6 +1158,31 @@ const styles = {
     justifyContent: 'space-between',
     gap: '16px'
   },
+  canvasHeaderMobile: {
+    backgroundColor: '#ffffff',
+    borderBottom: '1px solid #e5e7eb',
+    padding: '12px 16px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    flexWrap: 'wrap'
+  },
+  mobileHeaderButtons: {
+    display: 'flex',
+    gap: '8px'
+  },
+  mobileHeaderButton: {
+    padding: '8px',
+    backgroundColor: '#f3f4f6',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    color: '#374151',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background-color 0.2s'
+  },
   formTitleInput: {
     flex: 1,
     fontSize: '18px',
@@ -894,23 +1193,20 @@ const styles = {
     backgroundColor: 'transparent',
     padding: '8px 0'
   },
+  formTitleInputMobile: {
+    flex: 1,
+    minWidth: '120px',
+    fontSize: '16px',
+    fontWeight: '600',
+    border: 'none',
+    outline: 'none',
+    color: '#111827',
+    backgroundColor: 'transparent',
+    padding: '8px 0'
+  },
   canvasActions: {
     display: 'flex',
     gap: '12px'
-  },
-  previewButton: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '10px 16px',
-    backgroundColor: '#ffffff',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-    color: '#374151',
-    transition: 'all 0.2s'
   },
   publishButton: {
     display: 'flex',
@@ -926,6 +1222,10 @@ const styles = {
     color: '#ffffff',
     transition: 'all 0.2s'
   },
+  publishButtonMobile: {
+    padding: '10px 16px',
+    minWidth: '48px'
+  },
   publishButtonDisabled: {
     backgroundColor: '#9ca3af',
     cursor: 'not-allowed'
@@ -934,6 +1234,7 @@ const styles = {
     flex: 1,
     overflowY: 'auto',
     padding: '24px',
+    paddingBottom: '24px',
     transition: 'background-color 0.2s',
     userSelect: 'none',
     WebkitUserSelect: 'none',
@@ -1091,6 +1392,22 @@ const styles = {
     flexDirection: 'column',
     overflow: 'hidden'
   },
+  propertiesPanelMobile: {
+    position: 'fixed',
+    top: '64px',
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    zIndex: 200,
+    transition: 'transform 0.3s ease-out',
+    borderLeft: 'none'
+  },
+  propertiesPanelMobileOpen: {
+    transform: 'translateX(0)'
+  },
+  propertiesPanelMobileHidden: {
+    transform: 'translateX(100%)'
+  },
   propertiesPanelHeader: {
     padding: '20px',
     borderBottom: '1px solid #e5e7eb',
@@ -1187,7 +1504,14 @@ const styles = {
     gap: '8px',
     cursor: 'pointer',
     fontSize: '14px',
-    color: '#374151'
+    color: '#374151',
+    position: 'relative',
+    userSelect: 'none'
+  },
+  propertyCheckboxInput: {
+    position: 'absolute',
+    opacity: 0,
+    cursor: 'pointer'
   },
   propertyCheckbox: {
     width: '18px',
@@ -1287,6 +1611,43 @@ const styles = {
   pageTransition: {
     transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
     minHeight: '100vh'
+  },
+  
+  closeSidebarButton: {
+    padding: '8px',
+    backgroundColor: 'transparent',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    color: '#6b7280',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background-color 0.2s',
+    marginLeft: 'auto'
+  },
+  mobileReorderButtons: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    padding: '8px',
+    borderLeft: '1px solid #e5e7eb'
+  },
+  mobileReorderButton: {
+    padding: '6px',
+    backgroundColor: '#f3f4f6',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    color: '#374151',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background-color 0.2s'
+  },
+  mobileReorderButtonDisabled: {
+    opacity: 0.3,
+    cursor: 'not-allowed'
   }
 };
 

@@ -6,6 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="application-name" content="Tickets System V2">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="format-detection" content="telephone=no">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
@@ -103,6 +104,35 @@
       body {
         margin: 0;
         padding: 0;
+        -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
+        -webkit-tap-highlight-color: transparent !important;
+      }
+      
+      /* Remove tap highlight on all elements - NUCLEAR OPTION */
+      *,
+      *::before,
+      *::after,
+      button,
+      a,
+      div,
+      span,
+      svg,
+      path {
+        -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
+        -webkit-tap-highlight-color: transparent !important;
+        -webkit-touch-callout: none !important;
+        -webkit-user-select: none !important;
+        tap-highlight-color: transparent !important;
+      }
+      
+      /* Prevent SVG icons from being tap targets */
+      svg, svg * {
+        pointer-events: none !important;
+        -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
+      }
+      
+      input, textarea {
+        -webkit-user-select: text !important;
       }
       
       input:focus {
@@ -110,8 +140,36 @@
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
       }
       
-      button:hover {
-        background: #2563eb !important;
+      /* Desktop hover states only */
+      @media (min-width: 769px) {
+        /* Primary blue buttons - match both background and background-color */
+        button[style*="background: rgb(59, 130, 246)"]:hover,
+        button[style*="background:#3b82f6"]:hover,
+        button[style*="background-color: rgb(59, 130, 246)"]:hover,
+        button[style*="background-color:#3b82f6"]:hover,
+        button[data-hover="blue"]:hover {
+          background: #2563eb !important;
+        }
+        
+        button[style*="background: rgb(59, 130, 246)"]:active,
+        button[style*="background:#3b82f6"]:active,
+        button[style*="background-color: rgb(59, 130, 246)"]:active,
+        button[style*="background-color:#3b82f6"]:active,
+        button[data-hover="blue"]:active {
+          background: #1d4ed8 !important;
+        }
+        
+        button[data-hover="gray"]:hover {
+          background: #e5e7eb !important;
+        }
+        
+        button[data-hover="light-gray"]:hover {
+          background: #e5e7eb !important;
+        }
+        
+        button[data-hover="red"]:hover {
+          background: #fecaca !important;
+        }
       }
       
       button.logout-btn:hover {
@@ -120,10 +178,6 @@
       
       nav button:not(.logout-btn):hover {
         background: #f3f4f6 !important;
-      }
-      
-      button:active {
-        background: #1d4ed8 !important;
       }
       
       * {

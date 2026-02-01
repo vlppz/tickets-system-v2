@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './Navbar';
 import LoginPage from './LoginPage';
+import FormRenderer from './FormRenderer';
+import Footer from './Footer';
 
 function MainPage() {
   const [user, setUser] = useState(null);
@@ -8,6 +10,9 @@ function MainPage() {
   const [forms, setForms] = useState([]);
   const [transitioning, setTransitioning] = useState(false);
   const [expandingPanel, setExpandingPanel] = useState(false);
+  const [selectedFormId, setSelectedFormId] = useState(null);
+  const [expandingToForm, setExpandingToForm] = useState(false);
+  const [shrinkingFromForm, setShrinkingFromForm] = useState(false);
 
   useEffect(() => {
     // Check if we just logged out from another page
@@ -91,8 +96,23 @@ function MainPage() {
   };
 
   const handleViewForm = (formId) => {
-    // TODO: Navigate to form view/fill page
-    console.log('View form:', formId);
+    setExpandingToForm(true);
+    setTimeout(() => {
+      setSelectedFormId(formId);
+    }, 500);
+    setTimeout(() => {
+      setExpandingToForm(false);
+    }, 600);
+  };
+
+  const handleBackFromForm = () => {
+    setShrinkingFromForm(true);
+    setTimeout(() => {
+      setSelectedFormId(null);
+    }, 300);
+    setTimeout(() => {
+      setShrinkingFromForm(false);
+    }, 700);
   };
 
   const handleNavigate = (page) => {
@@ -117,6 +137,12 @@ function MainPage() {
         </div>
       )}
       
+      {expandingToForm && (
+        <div style={{...styles.expandingOverlay, backgroundColor: '#ffffff'}} className="expanding-overlay">
+          <div style={styles.expandingContent}></div>
+        </div>
+      )}
+      
       {!user ? (
         <>
           <LoginPage 
@@ -125,11 +151,18 @@ function MainPage() {
             isReversing={transitioning}
           />
         </>
+      ) : selectedFormId ? (
+        <FormRenderer 
+          formId={selectedFormId} 
+          onBack={handleBackFromForm}
+          isTransitioning={expandingToForm}
+          isReversing={shrinkingFromForm}
+        />
       ) : (
         <div style={{
           ...styles.container,
           ...styles.pageTransition,
-          opacity: (expandingPanel || transitioning) ? 0 : 1
+          opacity: (expandingPanel || transitioning || expandingToForm || shrinkingFromForm) ? 0 : 1
         }}>
           <Navbar user={user} onLogout={handleLogout} currentPage="tickets" onNavigate={handleNavigate} />
           
@@ -158,6 +191,8 @@ function MainPage() {
               )}
             </div>
           </main>
+          
+          <Footer />
         </div>
       )}
     </>
@@ -168,13 +203,16 @@ const styles = {
   container: {
     minHeight: '100vh',
     backgroundColor: '#f9fafb',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    display: 'flex',
+    flexDirection: 'column'
   },
   pageTransition: {
     transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)'
   },
   main: {
-    padding: '40px 0'
+    padding: '40px 0',
+    flex: 1
   },
   content: {
     maxWidth: '1200px',
