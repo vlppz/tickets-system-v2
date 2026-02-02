@@ -21,4 +21,3 @@ I don't vibecode backend here
 - PostgreSQL
 - Redis for caching sessions
 - React for frontend
-- 
