@@ -1,6 +1,6 @@
 class AppConfigController < ApplicationController
   def version
-    render json: { "status": "ok", "version": "dev-0.1" }
+    render json: { "status": "ok", "version": "dev" }
   end
 
   def state
