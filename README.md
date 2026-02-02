@@ -1,24 +1,23 @@
-# README
+# Tickets System V2
 
-This README would normally document whatever steps are necessary to get the
-application up and running.
+## Система приема заявок на мероприятия
+## System for accepting tickets for events
 
-Things you may want to cover:
+Обновление с более стабильной архитектурой и новыми функциями
 
-* Ruby version
+Тут без вайбкода бэкенда
 
-* System dependencies
 
-* Configuration
+--------------
 
-* Database creation
 
-* Database initialization
+Update with stable architecture and many new features
 
-* How to run the test suite
+I don't vibecode backend here
 
-* Services (job queues, cache servers, search engines, etc.)
 
-* Deployment instructions
-
-* ...
+## Architecture
+- Ruby on Rails
+- PostgreSQL
+- Redis for caching sessions
+- React for frontend
