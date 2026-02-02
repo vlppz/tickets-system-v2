@@ -218,14 +218,33 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
     e.preventDefault();
     setSubmitting(true);
     
-    // TODO: Submit form data to backend
-    console.log('Form data:', formData);
-    
-    setTimeout(() => {
-      alert('Заявка успешно отправлена!');
+    try {
+      const response = await fetch('/api/forms/answer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          form_id: formId,
+          answer: formData
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.status === 'ok') {
+        alert('Заявка успешно отправлена!');
+        if (onBack) onBack();
+      } else {
+        alert(data.detail || 'Ошибка при отправке заявки');
+        setSubmitting(false);
+      }
+    } catch (error) {
+      console.error('Failed to submit form:', error);
+      alert('Ошибка при отправке заявки');
       setSubmitting(false);
-      if (onBack) onBack();
-    }, 1000);
+    }
   };
 
   const renderField = (field) => {
@@ -250,6 +269,12 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
             type="number"
             value={formData[field.id] || ''}
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            onKeyPress={(e) => {
+              // Only allow digits
+              if (!/[0-9]/.test(e.key)) {
+                e.preventDefault();
+              }
+            }}
             required={isRequired}
             style={styles.input}
             placeholder={field.description || ''}
