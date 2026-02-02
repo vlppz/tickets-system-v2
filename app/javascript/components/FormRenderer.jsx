@@ -259,7 +259,6 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
             required={isRequired}
             style={styles.input}
-            placeholder={field.description || ''}
           />
         );
       
@@ -277,7 +276,6 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
             }}
             required={isRequired}
             style={styles.input}
-            placeholder={field.description || ''}
           />
         );
       
@@ -288,7 +286,6 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
             required={isRequired}
             style={styles.textarea}
-            placeholder={field.description || ''}
             rows={4}
           />
         );
