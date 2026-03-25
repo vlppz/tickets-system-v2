@@ -3,6 +3,36 @@ import { GripVertical, Plus, Trash2, Save, Type, Hash, ChevronDown, CheckSquare,
 import Navbar from './Navbar';
 import LoginPage from './LoginPage';
 import Footer from './Footer';
+import { themeStyles, themeValue } from '../lib/theme';
+
+function parseBuilderContent(content) {
+  if (Array.isArray(content)) {
+    return content;
+  }
+
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+function normalizeBuilderField(field, index) {
+  return {
+    id: field?.id || `field_${Date.now()}_${index}`,
+    label: field?.label || '',
+    type: field?.type || 'text',
+    required: Boolean(field?.required),
+    description: field?.description || '',
+    options: Array.isArray(field?.options) ? field.options : [],
+    requirementCondition: field?.requirementCondition || null
+  };
+}
 
 function FormBuilderPage() {
   const [user, setUser] = useState(null);
@@ -22,11 +52,16 @@ function FormBuilderPage() {
   const [showComponentsSidebar, setShowComponentsSidebar] = useState(false);
   const [showPropertiesSidebar, setShowPropertiesSidebar] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [editingFormId] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('form_id');
+  });
+  const isEditMode = Boolean(editingFormId);
 
   useEffect(() => {
     // Add custom checkbox styles
     const styleSheet = document.createElement('style');
-    styleSheet.textContent = `
+    styleSheet.textContent = themeValue(`
       .custom-checkbox-input-builder {
         position: absolute;
         opacity: 0;
@@ -117,7 +152,7 @@ function FormBuilderPage() {
       input, textarea {
         -webkit-user-select: text !important;
       }
-    `;
+    `);
     document.head.appendChild(styleSheet);
     
     // Check if mobile
@@ -163,6 +198,39 @@ function FormBuilderPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedFieldIndex, selectedFields, fields]);
 
+  const loadFormForEdit = async (formId) => {
+    if (!formId) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/forms/one?id=${formId}`, {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load form');
+      }
+
+      const data = await response.json();
+
+      if (data.status !== 'ok' || !data.form) {
+        alert(data.detail || 'Не удалось загрузить форму для редактирования');
+        window.location.href = '/admin/forms';
+        return;
+      }
+
+      setFormName(data.form.name || '');
+
+      const parsedFields = parseBuilderContent(data.form.content).map(normalizeBuilderField);
+      setFields(parsedFields);
+    } catch (error) {
+      console.error('Failed to load form for editing:', error);
+      alert('Не удалось загрузить форму для редактирования');
+      window.location.href = '/admin/forms';
+    }
+  };
+
   const checkAuth = async () => {
     try {
       const response = await fetch('/api/auth/me', {
@@ -173,6 +241,11 @@ function FormBuilderPage() {
       
       if (!data.user || !data.user.is_admin) {
         window.location.href = '/';
+        return;
+      }
+
+      if (isEditMode) {
+        await loadFormForEdit(editingFormId);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
@@ -193,8 +266,16 @@ function FormBuilderPage() {
     }, 600);
   };
 
-  const handleLoginSuccess = (userData) => {
+  const handleLoginSuccess = async (userData) => {
+    if (!userData?.is_admin) {
+      window.location.href = '/';
+      return;
+    }
+
     setExpandingPanel(true);
+    if (isEditMode) {
+      await loadFormForEdit(editingFormId);
+    }
     setTimeout(() => {
       setUser(userData);
     }, 900);
@@ -206,6 +287,16 @@ function FormBuilderPage() {
   const handleNavigate = (page) => {
     if (page === 'tickets') {
       window.location.href = '/';
+      return;
+    }
+
+    if (page === 'all_forms') {
+      window.location.href = '/admin/forms';
+      return;
+    }
+
+    if (page === 'answers') {
+      window.location.href = '/admin/answers';
     }
   };
 
@@ -425,24 +516,37 @@ function FormBuilderPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const normalizedName = formName.trim();
+
+    if (!normalizedName) {
+      alert('Введите название формы');
+      return;
+    }
+
     setSubmitting(true);
     
     try {
-      const response = await fetch('/api/forms/create', {
+      const payload = {
+        name: normalizedName,
+        content: JSON.stringify(fields)
+      };
+
+      if (isEditMode) {
+        payload.id = editingFormId;
+      }
+
+      const response = await fetch(isEditMode ? '/api/forms/update' : '/api/forms/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name: formName, 
-          content: JSON.stringify(fields)
-        }),
+        body: JSON.stringify(payload),
         credentials: 'include'
       });
 
       if (response.ok) {
         const data = await response.json();
         if (data.status === 'ok') {
-          alert('Форма успешно сохранена!');
-          window.location.href = '/';
+          alert(isEditMode ? 'Форма обновлена!' : 'Форма успешно сохранена!');
+          window.location.href = '/admin/forms';
         } else {
           alert('Ошибка при сохранении формы: ' + (data.detail || 'Неизвестная ошибка'));
         }
@@ -482,7 +586,7 @@ function FormBuilderPage() {
       ...styles.pageTransition,
       opacity: transitioning ? 0 : 1
     }}>
-      <Navbar user={user} onLogout={handleLogout} currentPage="forms" onNavigate={handleNavigate} />
+      <Navbar user={user} onLogout={handleLogout} currentPage="all_forms" onNavigate={handleNavigate} />
       
       <div style={isMobile ? styles.builderLayoutMobile : styles.builderLayout}>
         {/* Left Sidebar - Components */}
@@ -592,17 +696,20 @@ function FormBuilderPage() {
               style={isMobile ? styles.formTitleInputMobile : styles.formTitleInput}
               required
             />
+            {isEditMode && !isMobile && (
+              <span style={styles.editModeBadge}>Редактирование формы #{editingFormId}</span>
+            )}
             <div style={styles.canvasActions}>
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={submitting || fields.length === 0}
+                disabled={submitting || fields.length === 0 || !formName.trim()}
                 style={{
                   ...styles.publishButton,
                   ...(isMobile ? styles.publishButtonMobile : {}),
-                  ...(submitting || fields.length === 0 ? styles.publishButtonDisabled : {})
+                  ...(submitting || fields.length === 0 || !formName.trim() ? styles.publishButtonDisabled : {})
                 }}
-                {...(!(submitting || fields.length === 0) && { 'data-hover': 'blue' })}
+                {...(!(submitting || fields.length === 0 || !formName.trim()) && { 'data-hover': 'blue' })}
               >
                 {submitting ? (
                   <>
@@ -612,7 +719,7 @@ function FormBuilderPage() {
                 ) : (
                   <>
                     <Save size={18} />
-                    {!isMobile && <span>Опубликовать</span>}
+                    {!isMobile && <span>{isEditMode ? 'Сохранить изменения' : 'Опубликовать'}</span>}
                   </>
                 )}
               </button>
@@ -707,8 +814,8 @@ function FormBuilderPage() {
                   top: Math.min(selectionStart.y, selectionStart.currentY || selectionStart.y),
                   width: Math.abs((selectionStart.currentX || selectionStart.x) - selectionStart.x),
                   height: Math.abs((selectionStart.currentY || selectionStart.y) - selectionStart.y),
-                  backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                  border: '2px solid #3b82f6',
+                  backgroundColor: themeValue('rgba(59, 130, 246, 0.2)'),
+                  border: themeValue('2px solid #3b82f6'),
                   pointerEvents: 'none',
                   zIndex: 1000
                 }}
@@ -818,7 +925,7 @@ function FormFieldCard({ field, index, isSelected, onClick, onDragStart, onDragE
     >
       {!isMobile && (
         <div style={styles.fieldCardDragHandle}>
-          <GripVertical size={16} color="#9ca3af" />
+          <GripVertical size={16} color="var(--color-text-dim)" />
         </div>
       )}
       <div style={styles.fieldCardContent}>
@@ -1024,7 +1131,7 @@ function FieldProperties({ field, index, fields, updateField, removeField, addOp
   );
 }
 
-const styles = {
+const styles = themeStyles({
   container: {
     minHeight: '100vh',
     backgroundColor: '#f3f4f6',
@@ -1204,6 +1311,15 @@ const styles = {
     backgroundColor: 'transparent',
     padding: '8px 0'
   },
+  editModeBadge: {
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#1e40af',
+    backgroundColor: '#dbeafe',
+    borderRadius: '999px',
+    padding: '6px 10px',
+    whiteSpace: 'nowrap'
+  },
   canvasActions: {
     display: 'flex',
     gap: '12px'
@@ -1213,13 +1329,13 @@ const styles = {
     alignItems: 'center',
     gap: '6px',
     padding: '10px 20px',
-    backgroundColor: '#3b82f6',
+    backgroundColor: 'var(--color-primary)',
     border: 'none',
     borderRadius: '8px',
     cursor: 'pointer',
     fontSize: '14px',
     fontWeight: '600',
-    color: '#ffffff',
+    color: 'var(--color-on-primary)',
     transition: 'all 0.2s'
   },
   publishButtonMobile: {
@@ -1588,7 +1704,7 @@ const styles = {
   spinner: {
     width: '18px',
     height: '18px',
-    border: '2px solid #ffffff',
+    border: '2px solid var(--color-on-primary)',
     borderTopColor: 'transparent',
     borderRadius: '50%',
     animation: 'spin 0.6s linear infinite'
@@ -1649,6 +1765,6 @@ const styles = {
     opacity: 0.3,
     cursor: 'not-allowed'
   }
-};
+});
 
 export default FormBuilderPage;

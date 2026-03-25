@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { User, Lock, Mail } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
+import { themeStyles } from '../lib/theme';
 
 function LoginPage({ onLoginSuccess, isTransitioning, isReversing }) {
   const [view, setView] = useState('login');
+  const contentOpacity = (isTransitioning || isReversing) ? 0 : 1;
+  const contentTransition = isReversing ? 'opacity 0.6s ease-in 0.2s' : 'opacity 0.4s ease-out';
 
   return (
     <div style={styles.container}>
@@ -12,9 +16,17 @@ function LoginPage({ onLoginSuccess, isTransitioning, isReversing }) {
         ...(isReversing ? styles.leftPanelReversing : {})
       }} className="left-panel">
         <div style={{
+          ...styles.themeToggleWrap,
+          opacity: contentOpacity,
+          pointerEvents: contentOpacity === 0 ? 'none' : 'auto',
+          transition: contentTransition
+        }}>
+          <ThemeToggle compact />
+        </div>
+        <div style={{
           ...styles.content,
-          opacity: (isTransitioning || isReversing) ? 0 : 1,
-          transition: isReversing ? 'opacity 0.6s ease-in 0.2s' : 'opacity 0.4s ease-out'
+          opacity: contentOpacity,
+          transition: contentTransition
         }}>
           {view === 'login' ? (
             <LoginForm onSuccess={onLoginSuccess} onSwitchToRegister={() => setView('register')} />
@@ -105,7 +117,7 @@ function LoginForm({ onSuccess, onSwitchToRegister }) {
           <a href="#" style={styles.link}>Забыли пароль?</a>
         </div>
 
-        <button type="submit" style={styles.button}>
+        <button type="submit" style={styles.button} data-hover="blue">
           Войти
         </button>
       </form>
@@ -259,7 +271,7 @@ function RegisterForm({ onSuccess, onSwitchToLogin }) {
           </div>
         </div>
 
-        <button type="submit" style={styles.button}>
+        <button type="submit" style={styles.button} data-hover="blue">
           Зарегистрироваться
         </button>
       </form>
@@ -275,7 +287,7 @@ function RegisterForm({ onSuccess, onSwitchToLogin }) {
   );
 }
 
-const styles = {
+const styles = themeStyles({
   container: {
     position: 'relative',
     display: 'flex',
@@ -311,11 +323,15 @@ const styles = {
   },
   content: {
     width: '100%',
-    maxWidth: '420px'
+    maxWidth: '420px',
+    position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '28px'
   },
   rightPanel: {
     flex: 1,
-    backgroundImage: 'url(/bg.jpg)',
+    backgroundImage: 'var(--backdrop-tint), url(/bg.jpg)',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     position: 'relative'
@@ -325,7 +341,7 @@ const styles = {
     width: '100%',
     maxWidth: '100%',
     zIndex: 10,
-    margin: 'auto',
+    margin: 0,
     boxSizing: 'border-box'
   },
   logoContainer: {
@@ -336,10 +352,9 @@ const styles = {
     fontWeight: '600',
     color: '#1f2937',
     letterSpacing: '0.5px',
-    position: 'absolute',
-    top: '40px',
-    left: '50px',
-    zIndex: 20
+    position: 'static',
+    zIndex: 20,
+    lineHeight: 1.1
   },
   logoImage: {
     height: '32px',
@@ -355,7 +370,7 @@ const styles = {
     fontSize: '32px',
     fontWeight: '700',
     marginBottom: '30px',
-    marginTop: '80px',
+    marginTop: 0,
     color: '#1f2937',
     textAlign: 'left'
   },
@@ -408,8 +423,8 @@ const styles = {
     padding: '13px',
     fontSize: '15px',
     fontWeight: '600',
-    background: '#3b82f6',
-    color: 'white',
+    background: 'var(--color-primary)',
+    color: 'var(--color-on-primary)',
     border: 'none',
     borderRadius: '6px',
     cursor: 'pointer',
@@ -445,7 +460,13 @@ const styles = {
     textAlign: 'left',
     marginTop: '-6px',
     marginBottom: '4px'
+  },
+  themeToggleWrap: {
+    position: 'absolute',
+    top: '32px',
+    right: '32px',
+    zIndex: 30
   }
-};
+});
 
 export default LoginPage;

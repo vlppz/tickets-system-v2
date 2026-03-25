@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Send } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
+import { themeStyles, themeValue } from '../lib/theme';
 
 function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
   const [form, setForm] = useState(null);
@@ -12,7 +14,7 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
   useEffect(() => {
     // Add keyframes for animations
     const styleSheet = document.createElement('style');
-    styleSheet.textContent = `
+    styleSheet.textContent = themeValue(`
       @keyframes shrinkFromFullscreen {
         0% {
           transform: scale(2);
@@ -102,13 +104,6 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
-      .form-renderer-back-button:hover {
-        background-color: #e5e7eb !important;
-        border-color: #d1d5db !important;
-      }
-      .form-renderer-back-button-gray:hover {
-        background-color: #e5e7eb !important;
-      }
       
       /* Custom Checkbox Styles */
       .custom-checkbox-input {
@@ -148,7 +143,7 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
       .custom-checkbox-input:hover + .custom-checkbox {
         border-color: #9ca3af;
       }
-    `;
+    `);
     document.head.appendChild(styleSheet);
     
     fetchForm();
@@ -328,12 +323,25 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
     }
   };
 
+  const contentVisibility = isReversing ? 0 : (startAnimation ? 1 : 0);
+  const contentTransition = isReversing ? 'opacity 0.3s ease-out' : 'none';
+  const themeToggleStyle = {
+    ...styles.themeToggleWrap,
+    opacity: isReversing ? 0 : 0,
+    pointerEvents: contentVisibility === 0 ? 'none' : 'auto',
+    transition: contentTransition,
+    ...(startAnimation && !isReversing ? { animation: 'fadeInDown 0.4s ease-out 0.7s both' } : {})
+  };
+
   if (loading) {
     return (
       <div style={styles.container}>
         <div style={styles.rightPanelStatic}></div>
         <div style={styles.paperContainer}>
           <div style={styles.paperStatic}>
+            <div style={themeToggleStyle}>
+              <ThemeToggle compact />
+            </div>
           </div>
         </div>
       </div>
@@ -346,6 +354,9 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
         <div style={isReversing ? styles.rightPanelReversing : (startAnimation ? styles.rightPanel : styles.rightPanelStatic)}></div>
         <div style={styles.paperContainer}>
           <div style={isReversing ? styles.paperReversing : (startAnimation ? styles.paper : styles.paperStatic)}>
+            <div style={themeToggleStyle}>
+              <ThemeToggle compact />
+            </div>
             <div 
               style={{
                 ...styles.errorText,
@@ -360,8 +371,8 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
                 style={{
                   ...styles.backButton,
                   ...(startAnimation ? { animation: 'fadeInUp 0.4s ease-out 0.9s both' } : {})
-                }} 
-                className="form-renderer-back-button-gray"
+                }}
+                data-hover="neutral"
               >
                 <ArrowLeft size={18} />
                 <span>Назад</span>
@@ -381,14 +392,18 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
         <div 
           style={isReversing ? styles.paperReversing : (startAnimation ? styles.paper : styles.paperStatic)}
         >
+          <div style={themeToggleStyle}>
+            <ThemeToggle compact />
+          </div>
           <div
             style={{
-              opacity: isReversing ? 0 : (startAnimation ? 1 : 0),
-              transition: isReversing ? 'opacity 0.3s ease-out' : 'none'
+              ...styles.formContent,
+              opacity: contentVisibility,
+              transition: contentTransition
             }}
           >
             {onBack && (
-              <button onClick={onBack} style={styles.backButtonTop} className="form-renderer-back-button">
+              <button onClick={onBack} style={styles.backButtonTop} data-hover="neutral">
                 <ArrowLeft size={18} />
                 <span>Назад</span>
               </button>
@@ -419,6 +434,7 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
               <button
                 type="submit"
                 disabled={submitting}
+                data-hover="blue"
                 style={{
                   ...styles.submitButton,
                   ...(submitting ? styles.submitButtonDisabled : {}),
@@ -445,14 +461,14 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
   );
 }
 
-const styles = {
+const styles = themeStyles({
   container: {
     position: 'relative',
     display: 'flex',
     minHeight: '100vh',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     overflow: 'hidden',
-    backgroundColor: '#ffffff'
+    backgroundColor: 'var(--color-page-bg)'
   },
   rightPanel: {
     position: 'fixed',
@@ -460,7 +476,7 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundImage: 'url(/bg.jpg)',
+    backgroundImage: 'var(--backdrop-tint), url(/bg.jpg)',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     zIndex: 0,
@@ -472,7 +488,7 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundImage: 'url(/bg.jpg)',
+    backgroundImage: 'var(--backdrop-tint), url(/bg.jpg)',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     zIndex: 0,
@@ -486,7 +502,7 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundImage: 'url(/bg.jpg)',
+    backgroundImage: 'var(--backdrop-tint), url(/bg.jpg)',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     zIndex: 0,
@@ -539,6 +555,15 @@ const styles = {
     boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)',
     position: 'relative',
     animation: 'expandToFullscreen 0.5s cubic-bezier(0.4, 0, 1, 1) forwards'
+  },
+  themeToggleWrap: {
+    position: 'absolute',
+    top: '24px',
+    right: '24px',
+    zIndex: 2
+  },
+  formContent: {
+    minHeight: '100%'
   },
   backButtonTop: {
     display: 'flex',
@@ -668,13 +693,13 @@ const styles = {
     justifyContent: 'center',
     gap: '10px',
     padding: '13px',
-    backgroundColor: '#3b82f6',
+    backgroundColor: 'var(--color-primary)',
     border: 'none',
     borderRadius: '6px',
     cursor: 'pointer',
     fontSize: '15px',
     fontWeight: '600',
-    color: '#ffffff',
+    color: 'var(--color-on-primary)',
     marginTop: '8px',
     transition: 'all 0.3s ease',
     animation: 'fadeInUp 0.4s ease-out 0.2s both',
@@ -687,7 +712,7 @@ const styles = {
   spinner: {
     width: '18px',
     height: '18px',
-    border: '2px solid #ffffff',
+    border: '2px solid var(--color-on-primary)',
     borderTopColor: 'transparent',
     borderRadius: '50%',
     animation: 'spin 0.6s linear infinite'
@@ -713,6 +738,6 @@ const styles = {
     padding: '20px',
     opacity: 0
   }
-};
+});
 
 export default FormRenderer;

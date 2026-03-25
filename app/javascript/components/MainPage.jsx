@@ -3,6 +3,7 @@ import Navbar from './Navbar';
 import LoginPage from './LoginPage';
 import FormRenderer from './FormRenderer';
 import Footer from './Footer';
+import { themeStyles } from '../lib/theme';
 
 function MainPage() {
   const [user, setUser] = useState(null);
@@ -116,8 +117,17 @@ function MainPage() {
   };
 
   const handleNavigate = (page) => {
-    if (page === 'forms') {
-      window.location.href = '/forms/builder';
+    if (page === 'tickets') {
+      return;
+    }
+
+    if (page === 'all_forms') {
+      window.location.href = '/admin/forms';
+      return;
+    }
+
+    if (page === 'answers') {
+      window.location.href = '/admin/answers';
     }
   };
 
@@ -138,7 +148,7 @@ function MainPage() {
       )}
       
       {expandingToForm && (
-        <div style={{...styles.expandingOverlay, backgroundColor: '#ffffff'}} className="expanding-overlay">
+        <div style={{...styles.expandingOverlay, backgroundColor: 'var(--color-surface)'}} className="expanding-overlay">
           <div style={styles.expandingContent}></div>
         </div>
       )}
@@ -182,6 +192,7 @@ function MainPage() {
                       <button 
                         style={styles.viewFormButton}
                         onClick={() => handleViewForm(form.id)}
+                        data-hover="blue"
                       >
                         Заполнить заявку
                       </button>
@@ -199,7 +210,7 @@ function MainPage() {
   );
 }
 
-const styles = {
+const styles = themeStyles({
   container: {
     minHeight: '100vh',
     backgroundColor: '#f9fafb',
@@ -268,8 +279,8 @@ const styles = {
   viewFormButton: {
     width: '100%',
     padding: '10px 16px',
-    backgroundColor: '#3b82f6',
-    color: '#ffffff',
+    backgroundColor: 'var(--color-primary)',
+    color: 'var(--color-on-primary)',
     border: 'none',
     borderRadius: '8px',
     fontSize: '14px',
@@ -277,6 +288,6 @@ const styles = {
     cursor: 'pointer',
     transition: 'background-color 0.2s'
   }
-};
+});
 
 export default MainPage;

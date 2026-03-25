@@ -6,6 +6,9 @@ Rails.application.routes.draw do
 
   # Pages
   get "forms/builder" => "pages#home"
+  get "admin/forms" => "pages#home"
+  get "admin/answers" => "pages#home"
+  get "admin/answers/view" => "pages#home"
 
   # -------------- AUTH --------------
   post "api/auth/register" => "auth#register"
@@ -20,6 +23,8 @@ Rails.application.routes.draw do
   post "api/forms/update" => "forms#update"
   delete "api/forms/delete" => "forms#delete"
   post "api/forms/answer" => "forms#answer"
+  post "api/forms/answers" => "forms#get_answers"
+  get "api/forms/answers/one" => "forms#get_answer"
 
   # -------------- APP CONFIG --------------
   get "api/state" => "app_config#state"

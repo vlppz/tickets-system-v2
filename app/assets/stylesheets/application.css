@@ -9,11 +9,103 @@
  * Consider organizing styles into separate files for maintainability.
  */
 
+:root {
+  color-scheme: light;
+  --color-bg: #f3f4f6;
+  --color-page-bg: #f9fafb;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f9fafb;
+  --color-surface-subtle: #f3f4f6;
+  --color-brand-surface: #eff6ff;
+  --color-brand-surface-strong: #dbeafe;
+  --color-brand-surface-hover: #bfdbfe;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+  --color-text-strong: #111827;
+  --color-text-primary: #1f2937;
+  --color-text-secondary: #374151;
+  --color-text-muted: #6b7280;
+  --color-text-dim: #9ca3af;
+  --color-brand: #3b82f6;
+  --color-brand-hover: #2563eb;
+  --color-brand-text: #1e40af;
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-on-primary: #ffffff;
+  --color-brand-ring: rgba(59, 130, 246, 0.1);
+  --color-brand-selection: rgba(59, 130, 246, 0.2);
+  --color-brand-glow: rgba(59, 130, 246, 0.5);
+  --color-danger: #dc2626;
+  --color-danger-surface: #fee2e2;
+  --color-danger-border: #fecaca;
+  --color-success: #10b981;
+  --color-on-brand: #ffffff;
+  --shadow-soft: rgba(0, 0, 0, 0.05);
+  --shadow-medium: rgba(0, 0, 0, 0.1);
+  --shadow-strong: rgba(0, 0, 0, 0.15);
+  --overlay: rgba(0, 0, 0, 0.5);
+  --backdrop-tint: linear-gradient(135deg, rgba(17, 24, 39, 0.08), rgba(17, 24, 39, 0.18));
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #09090b;
+  --color-page-bg: #09090b;
+  --color-surface: #111111;
+  --color-surface-muted: #18181b;
+  --color-surface-subtle: #27272a;
+  --color-brand-surface: rgba(255, 255, 255, 0.05);
+  --color-brand-surface-strong: rgba(255, 255, 255, 0.10);
+  --color-brand-surface-hover: rgba(255, 255, 255, 0.16);
+  --color-border: #27272a;
+  --color-border-strong: #3f3f46;
+  --color-text-strong: #fafafa;
+  --color-text-primary: #e4e4e7;
+  --color-text-secondary: #d4d4d8;
+  --color-text-muted: #a1a1aa;
+  --color-text-dim: #71717a;
+  --color-brand: #e4e4e7;
+  --color-brand-hover: #f4f4f5;
+  --color-brand-text: #f4f4f5;
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-on-primary: #ffffff;
+  --color-brand-ring: rgba(255, 255, 255, 0.12);
+  --color-brand-selection: rgba(255, 255, 255, 0.08);
+  --color-brand-glow: rgba(255, 255, 255, 0.16);
+  --color-danger: #f87171;
+  --color-danger-surface: rgba(248, 113, 113, 0.14);
+  --color-danger-border: rgba(248, 113, 113, 0.28);
+  --color-success: #34d399;
+  --color-on-brand: #111111;
+  --shadow-soft: rgba(0, 0, 0, 0.34);
+  --shadow-medium: rgba(0, 0, 0, 0.5);
+  --shadow-strong: rgba(0, 0, 0, 0.65);
+  --overlay: rgba(0, 0, 0, 0.76);
+  --backdrop-tint: linear-gradient(135deg, rgba(0, 0, 0, 0.74), rgba(24, 24, 27, 0.64));
+}
+
 /* Reset default styles */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  background-color: var(--color-page-bg);
+  color: var(--color-text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+body {
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
 }
 
 button {
@@ -56,12 +148,12 @@ div[draggable="true"]:focus {
 
 /* Component drag hover effect - only for sidebar components */
 .component-draggable {
-  border: 1px solid #e5e7eb !important;
+  border: 1px solid var(--color-border) !important;
 }
 
 .component-draggable:hover {
-  border-color: #3b82f6 !important;
-  background-color: #f9fafb !important;
+  border-color: var(--color-brand) !important;
+  background-color: var(--color-surface-muted) !important;
 }
 
 .component-draggable:active {
@@ -71,12 +163,12 @@ div[draggable="true"]:focus {
 
 /* Field cards - prevent any border changes on hover/focus */
 .field-card-draggable {
-  border: 1px solid #e5e7eb !important;
+  border: 1px solid var(--color-border) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .field-card-draggable:hover {
-  border-color: #d1d5db !important;
+  border-color: var(--color-border-strong) !important;
 }
 
 .field-card-draggable:focus {
@@ -84,11 +176,11 @@ div[draggable="true"]:focus {
 }
 
 .field-card-draggable.selected {
-  border-color: #3b82f6 !important;
+  border-color: var(--color-brand) !important;
 }
 
 .field-card-draggable.selected:hover {
-  border-color: #3b82f6 !important;
+  border-color: var(--color-brand) !important;
 }
 
 .field-card-draggable.dragging {
@@ -97,8 +189,8 @@ div[draggable="true"]:focus {
 }
 
 .field-card-draggable.drag-over {
-  border-color: #3b82f6 !important;
-  background-color: #eff6ff !important;
+  border-color: var(--color-brand) !important;
+  background-color: var(--color-brand-surface) !important;
 }
 
 @keyframes spin {
@@ -123,27 +215,43 @@ button:disabled {
 }
 
 button[data-hover="gray"]:hover:not(:disabled) {
-  background-color: #f3f4f6 !important;
+  background-color: var(--color-surface-subtle) !important;
 }
 
 button[data-hover="blue"]:hover:not(:disabled) {
-  background-color: #2563eb !important;
+  background-color: var(--color-primary-hover) !important;
+}
+
+button[data-hover="soft-brand"]:hover:not(:disabled) {
+  background-color: var(--color-brand-surface-hover) !important;
+  color: var(--color-brand-text) !important;
+}
+
+button[data-hover="nav"]:hover:not(:disabled) {
+  background-color: var(--color-surface-subtle) !important;
+  color: var(--color-text-strong) !important;
+}
+
+button[data-hover="neutral"]:hover:not(:disabled) {
+  background-color: var(--color-surface-subtle) !important;
+  color: var(--color-text-strong) !important;
+  border-color: var(--color-border-strong) !important;
 }
 
 button[data-hover="red"]:hover:not(:disabled) {
-  background-color: #fecaca !important;
+  background-color: var(--color-danger-border) !important;
 }
 
 button[data-hover="light-gray"]:hover:not(:disabled) {
-  background-color: #e5e7eb !important;
+  background-color: var(--color-border) !important;
 }
 
 /* Smooth transitions for interactive elements */
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: #3b82f6 !important;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+  border-color: var(--color-brand) !important;
+  box-shadow: 0 0 0 3px var(--color-brand-ring) !important;
 }
 
 /* Scrollbar styling */
@@ -153,16 +261,16 @@ select:focus {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f3f4f6;
+  background: var(--color-surface-subtle);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: var(--color-border-strong);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: var(--color-text-dim);
 }
 
 /* Login page animations */

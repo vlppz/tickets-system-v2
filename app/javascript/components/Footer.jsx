@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { themeStyles } from '../lib/theme';
 
 function Footer() {
   const [version, setVersion] = useState('');
@@ -47,14 +48,14 @@ function Footer() {
         </span>
         <span style={styles.separator}>•</span>
         <span style={styles.text}>
-          Статус: <span style={{...styles.value, color: state === 'up' ? '#10b981' : '#6b7280'}}>{state || '...'}</span>
+          Статус: <span style={{...styles.value, color: state === 'up' ? 'var(--color-success)' : 'var(--color-text-muted)'}}>{state || '...'}</span>
         </span>
       </div>
     </footer>
   );
 }
 
-const styles = {
+const styles = themeStyles({
   footer: {
     backgroundColor: '#ffffff',
     borderTop: '1px solid #e5e7eb',
@@ -80,6 +81,6 @@ const styles = {
   separator: {
     color: '#d1d5db'
   }
-};
+});
 
 export default Footer;

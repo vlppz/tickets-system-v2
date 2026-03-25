@@ -1,9 +1,18 @@
 import React from 'react';
 import { LogOut, Menu, X } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
+import { themeStyles } from '../lib/theme';
 
 function Navbar({ user, onLogout, currentPage, onNavigate }) {
-  const [isHovered, setIsHovered] = React.useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const navItems = [{ key: 'tickets', label: 'Заявки' }];
+
+  if (user.is_admin) {
+    navItems.push(
+      { key: 'all_forms', label: 'Все формы' },
+      { key: 'answers', label: 'Ответы' }
+    );
+  }
 
   return (
     <nav style={styles.navbar}>
@@ -15,40 +24,28 @@ function Navbar({ user, onLogout, currentPage, onNavigate }) {
         
         {/* Desktop Navigation */}
         <div style={styles.navLinks} className="desktop-nav">
-          <button
-            onClick={() => onNavigate('tickets')}
-            style={{
-              ...styles.navLink,
-              ...(currentPage === 'tickets' ? styles.navLinkActive : {})
-            }}
-          >
-            Заявки
-          </button>
-          
-          {user.is_admin && (
+          {navItems.map((item) => (
             <button
-              onClick={() => onNavigate('forms')}
+              key={item.key}
+              onClick={() => onNavigate(item.key)}
+              data-hover="nav"
               style={{
                 ...styles.navLink,
-                ...(currentPage === 'forms' ? styles.navLinkActive : {})
+                ...(currentPage === item.key ? styles.navLinkActive : {})
               }}
             >
-              Создать форму
+              {item.label}
             </button>
-          )}
+          ))}
         </div>
 
         <div style={styles.userSection} className="desktop-user">
+          <ThemeToggle compact />
           <span style={styles.userName}>{user.email}</span>
           <button 
             onClick={onLogout} 
-            className="logout-btn"
-            style={{
-              ...styles.logoutButton,
-              ...(isHovered ? styles.logoutButtonHover : {})
-            }}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
+            style={styles.logoutButton}
+            data-hover="soft-brand"
           >
             <LogOut size={18} />
             <span>Выйти</span>
@@ -60,6 +57,7 @@ function Navbar({ user, onLogout, currentPage, onNavigate }) {
           style={styles.hamburger}
           className="mobile-hamburger"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          data-hover="neutral"
         >
           {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
@@ -69,36 +67,26 @@ function Navbar({ user, onLogout, currentPage, onNavigate }) {
       {mobileMenuOpen && (
         <div style={styles.mobileMenuOverlay} className="mobile-menu-overlay">
           <div style={styles.mobileMenuContent}>
-            <button
-              onClick={() => {
-                onNavigate('tickets');
-                setMobileMenuOpen(false);
-              }}
-              style={{
-                ...styles.mobileNavLink,
-                ...(currentPage === 'tickets' ? styles.mobileNavLinkActive : {})
-              }}
-            >
-              Заявки
-            </button>
-            
-            {user.is_admin && (
+            {navItems.map((item) => (
               <button
+                key={item.key}
                 onClick={() => {
-                  onNavigate('forms');
+                  onNavigate(item.key);
                   setMobileMenuOpen(false);
                 }}
+                data-hover="nav"
                 style={{
                   ...styles.mobileNavLink,
-                  ...(currentPage === 'forms' ? styles.mobileNavLinkActive : {})
+                  ...(currentPage === item.key ? styles.mobileNavLinkActive : {})
                 }}
               >
-                Создать форму
+                {item.label}
               </button>
-            )}
+            ))}
 
             <div style={styles.mobileUserInfo}>
               <span style={styles.mobileUserEmail}>{user.email}</span>
+              <ThemeToggle />
             </div>
 
             <button 
@@ -107,6 +95,7 @@ function Navbar({ user, onLogout, currentPage, onNavigate }) {
                 setMobileMenuOpen(false);
               }}
               style={styles.mobileLogoutButton}
+              data-hover="soft-brand"
             >
               <LogOut size={18} />
               <span>Выйти</span>
@@ -150,7 +139,7 @@ function Navbar({ user, onLogout, currentPage, onNavigate }) {
   );
 }
 
-const styles = {
+const styles = themeStyles({
   navbar: {
     backgroundColor: '#ffffff',
     borderBottom: '1px solid #e5e7eb',
@@ -229,9 +218,6 @@ const styles = {
     color: '#1e40af',
     transition: 'background-color 0.2s'
   },
-  logoutButtonHover: {
-    backgroundColor: '#bfdbfe'
-  },
   hamburger: {
     display: 'none',
     alignItems: 'center',
@@ -287,6 +273,9 @@ const styles = {
     color: '#1f2937'
   },
   mobileUserInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
     padding: '12px 16px',
     borderTop: '1px solid #e5e7eb',
     borderBottom: '1px solid #e5e7eb',
@@ -312,6 +301,6 @@ const styles = {
     color: '#1e40af',
     transition: 'background-color 0.2s'
   }
-};
+});
 
 export default Navbar;
