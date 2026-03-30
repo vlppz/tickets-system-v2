@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Calendar, CheckCircle, Clock, FileText, User, XCircle } from 'lucide-react';
 import Navbar from './Navbar';
 import LoginPage from './LoginPage';
 import Footer from './Footer';
@@ -32,7 +32,13 @@ function formatDateTime(rawDate) {
     return '—';
   }
 
-  return date.toLocaleString('ru-RU');
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }
 
 function formatAnswerValue(value) {
@@ -68,17 +74,45 @@ function getUserLabel(user, userId) {
   return user.email || `Пользователь #${userId}`;
 }
 
-function getStatusLabel(status) {
+function getUserEmail(user) {
+  return user?.email || null;
+}
+
+function getStatusConfig(status) {
   if (status === 'approved') {
-    return 'Подтверждено';
+    return {
+      label: 'Подтверждено',
+      icon: CheckCircle,
+      badgeStyle: { backgroundColor: '#d1fae5', color: '#065f46' }
+    };
   }
 
   if (status === 'edits_required') {
-    return 'Нужны правки';
+    return {
+      label: 'Нужны правки',
+      icon: XCircle,
+      badgeStyle: { backgroundColor: '#fee2e2', color: '#991b1b' }
+    };
   }
 
-  return 'Ожидает проверки';
+  return {
+    label: 'Ожидает проверки',
+    icon: Clock,
+    badgeStyle: { backgroundColor: '#f3f4f6', color: '#374151' }
+  };
 }
+
+function getFieldTypeLabel(type) {
+  const map = {
+    text: 'Текст',
+    textarea: 'Многострочный',
+    number: 'Число',
+    checkbox: 'Флажок',
+    select: 'Выбор'
+  };
+  return map[type] || type;
+}
+
 
 function AdminAnswerDetailsPage() {
   const [user, setUser] = useState(null);
@@ -103,18 +137,19 @@ function AdminAnswerDetailsPage() {
     fetchAnswerDetails();
   }, [user]);
 
-  const fieldLabels = useMemo(() => {
-    const labels = {};
-    parseFormContent(form?.content).forEach((field) => {
-      if (!field?.id) {
-        return;
-      }
-
-      labels[field.id] = field.label || field.id;
-    });
-
-    return labels;
+  const formFields = useMemo(() => {
+    return parseFormContent(form?.content);
   }, [form]);
+
+  const fieldMap = useMemo(() => {
+    const map = {};
+    formFields.forEach((field) => {
+      if (field?.id) {
+        map[field.id] = field;
+      }
+    });
+    return map;
+  }, [formFields]);
 
   const checkAuth = async () => {
     try {
@@ -242,12 +277,19 @@ function AdminAnswerDetailsPage() {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
+  const statusConfig = answer ? getStatusConfig(answer.status) : null;
+  const StatusIcon = statusConfig?.icon;
+  const userFullName = answer
+    ? [answer.user?.surname, answer.user?.name, answer.user?.second_name].filter(Boolean).join(' ').trim() || null
+    : null;
+  const userEmail = answer ? getUserEmail(answer.user) : null;
+
   return (
     <div style={styles.container}>
       <Navbar user={user} onLogout={handleLogout} currentPage="answers" onNavigate={handleNavigate} />
 
       <main style={styles.main}>
-        <div style={styles.content}>
+        <div style={styles.content} className="answer-details-content">
           <button
             onClick={handleBackToAnswers}
             style={styles.backButton}
@@ -257,45 +299,117 @@ function AdminAnswerDetailsPage() {
             <span>К списку ответов</span>
           </button>
 
-          <h1 style={styles.pageTitle}>Ответ #{answerId || '—'}</h1>
-
           {answerLoading ? (
-            <div style={styles.loadingAnswer}>Загрузка ответа...</div>
+            <div style={styles.loadingAnswer}>
+              <div style={styles.loadingSpinner} />
+              <p style={styles.loadingText}>Загрузка ответа...</p>
+            </div>
           ) : answerError ? (
-            <p style={styles.errorText}>{answerError}</p>
+            <div style={styles.errorCard}>
+              <XCircle size={20} style={{ color: '#dc2626', flexShrink: 0 }} />
+              <p style={styles.errorText}>{answerError}</p>
+            </div>
           ) : (
-            <article style={styles.answerCard}>
-              <div style={styles.cardHeader}>
-                <div>
-                  <h2 style={styles.cardTitle}>{form?.name || `Форма #${answer.form_id}`}</h2>
-                  <p style={styles.cardSubTitle}>{getUserLabel(answer.user, answer.user_id)}</p>
+            <>
+              <div style={styles.topRow}>
+                <div style={styles.titleBlock}>
+                  <div style={styles.titleLine}>
+                    <FileText size={20} style={styles.titleIcon} />
+                    <h1 style={styles.pageTitle}>{form?.name || `Форма #${answer.form_id}`}</h1>
+                  </div>
+                  <p style={styles.answerIdLabel}>Ответ #{answerId}</p>
                 </div>
-                <span style={{ ...styles.statusBadge, ...styles[`status_${answer.status}`] }}>
-                  {getStatusLabel(answer.status)}
+
+                <span style={{ ...styles.statusBadge, ...statusConfig?.badgeStyle }}>
+                  {StatusIcon && <StatusIcon size={13} />}
+                  {statusConfig?.label}
                 </span>
               </div>
 
-              <p style={styles.metaText}>Создан: {formatDateTime(answer.created_at)}</p>
-              <p style={styles.metaText}>Обновлен: {formatDateTime(answer.updated_at)}</p>
+              <div style={styles.metaCards}>
+                <div style={styles.metaCard}>
+                  <User size={15} style={styles.metaIcon} />
+                  <div style={styles.metaCardBody}>
+                    <span style={styles.metaCardLabel}>Пользователь</span>
+                    <span style={styles.metaCardValue}>{userFullName || userEmail || `#${answer.user_id}`}</span>
+                    {userFullName && userEmail && (
+                      <span style={styles.metaCardSub}>{userEmail}</span>
+                    )}
+                  </div>
+                </div>
 
-              <div style={styles.detailsBlock}>
+                <div style={styles.metaCard}>
+                  <Calendar size={15} style={styles.metaIcon} />
+                  <div style={styles.metaCardBody}>
+                    <span style={styles.metaCardLabel}>Создан</span>
+                    <span style={styles.metaCardValue}>{formatDateTime(answer.created_at)}</span>
+                  </div>
+                </div>
+
+                <div style={styles.metaCard}>
+                  <Clock size={15} style={styles.metaIcon} />
+                  <div style={styles.metaCardBody}>
+                    <span style={styles.metaCardLabel}>Обновлён</span>
+                    <span style={styles.metaCardValue}>{formatDateTime(answer.updated_at)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.fieldsCard}>
+                <h2 style={styles.fieldsTitle}>Данные ответа</h2>
+
                 {answerEntries.length === 0 ? (
                   <p style={styles.emptyText}>Нет данных ответа</p>
                 ) : (
-                  answerEntries.map(([fieldId, value]) => (
-                    <div key={fieldId} style={styles.detailRow}>
-                      <span style={styles.detailLabel}>{fieldLabels[fieldId] || fieldId}</span>
-                      <span style={styles.detailValue}>{formatAnswerValue(value)}</span>
-                    </div>
-                  ))
+                  <div style={styles.fieldsList}>
+                    {answerEntries.map(([fieldId, value], index) => {
+                      const fieldDef = fieldMap[fieldId];
+                      const label = fieldDef?.label || fieldId;
+                      const typeLabel = fieldDef ? getFieldTypeLabel(fieldDef.type) : null;
+                      const isBoolean = typeof value === 'boolean';
+                      const isLast = index === answerEntries.length - 1;
+
+                      return (
+                        <div key={fieldId} style={{ ...styles.fieldItem, ...(isLast ? { borderBottom: 'none' } : {}) }}>
+                          <div style={styles.fieldMeta}>
+                            <span style={styles.fieldLabel}>{label}</span>
+                          </div>
+                          <div style={isBoolean ? styles.fieldValueBool : styles.fieldValue}>
+                            {isBoolean ? (
+                              value ? (
+                                <span style={styles.boolYes}>
+                                  <CheckCircle size={14} />
+                                  Да
+                                </span>
+                              ) : (
+                                <span style={styles.boolNo}>
+                                  <XCircle size={14} />
+                                  Нет
+                                </span>
+                              )
+                            ) : (
+                              formatAnswerValue(value)
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
-            </article>
+            </>
           )}
         </div>
       </main>
 
       <Footer />
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .answer-details-content, .answer-details-content * {
+          user-select: text !important;
+          -webkit-user-select: text !important;
+        }
+      `}</style>
     </div>
   );
 }
@@ -313,13 +427,13 @@ const styles = themeStyles({
     padding: '32px 0'
   },
   content: {
-    maxWidth: '900px',
+    maxWidth: '860px',
     margin: '0 auto',
     width: '100%',
     padding: '0 24px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '14px'
+    gap: '16px'
   },
   backButton: {
     display: 'inline-flex',
@@ -335,97 +449,202 @@ const styles = themeStyles({
     cursor: 'pointer',
     alignSelf: 'flex-start'
   },
-  pageTitle: {
-    fontSize: '30px',
-    fontWeight: '700',
-    color: '#1f2937'
-  },
-  answerCard: {
-    border: '1px solid #e5e7eb',
-    borderRadius: '14px',
-    backgroundColor: '#ffffff',
-    padding: '18px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px'
-  },
-  cardHeader: {
+  topRow: {
     display: 'flex',
     justifyContent: 'space-between',
-    gap: '12px',
-    alignItems: 'flex-start'
+    alignItems: 'flex-start',
+    gap: '16px',
+    flexWrap: 'wrap'
   },
-  cardTitle: {
-    fontSize: '20px',
-    fontWeight: '700',
-    color: '#1f2937',
-    marginBottom: '4px'
-  },
-  cardSubTitle: {
-    fontSize: '14px',
-    color: '#6b7280'
-  },
-  statusBadge: {
-    fontSize: '12px',
-    fontWeight: '600',
-    borderRadius: '999px',
-    padding: '5px 10px',
-    whiteSpace: 'nowrap'
-  },
-  status_waiting: {
-    backgroundColor: '#f3f4f6',
-    color: '#374151'
-  },
-  status_approved: {
-    backgroundColor: '#d1fae5',
-    color: '#065f46'
-  },
-  status_edits_required: {
-    backgroundColor: '#fee2e2',
-    color: '#991b1b'
-  },
-  metaText: {
-    fontSize: '13px',
-    color: '#6b7280'
-  },
-  detailsBlock: {
-    borderTop: '1px solid #e5e7eb',
-    paddingTop: '12px',
+  titleBlock: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '9px'
+    gap: '4px'
   },
-  detailRow: {
-    display: 'grid',
-    gridTemplateColumns: 'minmax(180px, 250px) minmax(0, 1fr)',
-    gap: '10px',
-    alignItems: 'start'
+  titleLine: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px'
   },
-  detailLabel: {
+  titleIcon: {
+    color: '#3b82f6',
+    flexShrink: 0
+  },
+  pageTitle: {
+    fontSize: '26px',
+    fontWeight: '700',
+    color: '#1f2937',
+    margin: 0
+  },
+  answerIdLabel: {
+    fontSize: '13px',
+    color: '#9ca3af',
+    paddingLeft: '30px'
+  },
+  statusBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
     fontSize: '13px',
     fontWeight: '600',
-    color: '#1f2937'
+    borderRadius: '999px',
+    padding: '6px 12px',
+    whiteSpace: 'nowrap',
+    flexShrink: 0
   },
-  detailValue: {
+  metaCards: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+    gap: '12px'
+  },
+  metaCard: {
+    display: 'flex',
+    gap: '12px',
+    alignItems: 'center',
+    padding: '14px 16px',
+    border: '1px solid #e5e7eb',
+    borderRadius: '10px',
+    backgroundColor: '#ffffff'
+  },
+  metaIcon: {
+    color: '#9ca3af',
+    flexShrink: 0
+  },
+  metaCardBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    minWidth: '0'
+  },
+  metaCardLabel: {
+    fontSize: '11px',
+    fontWeight: '600',
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em'
+  },
+  metaCardValue: {
+    fontSize: '14px',
+    fontWeight: '500',
+    color: '#1f2937',
+    wordBreak: 'break-word',
+    userSelect: 'text'
+  },
+  metaCardSub: {
+    fontSize: '12px',
+    color: '#6b7280',
+    userSelect: 'text'
+  },
+  fieldsCard: {
+    border: '1px solid #e5e7eb',
+    borderRadius: '12px',
+    backgroundColor: '#ffffff',
+    padding: '20px 20px 8px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px'
+  },
+  fieldsTitle: {
+    fontSize: '15px',
+    fontWeight: '600',
+    color: '#374151',
+    margin: 0
+  },
+  fieldsList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0px'
+  },
+  fieldItem: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(160px, 240px) minmax(0, 1fr)',
+    gap: '16px',
+    alignItems: 'start',
+    padding: '12px 0',
+    borderBottom: '1px solid #f3f4f6'
+  },
+  fieldMeta: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '3px'
+  },
+  fieldLabel: {
     fontSize: '13px',
+    fontWeight: '600',
+    color: '#1f2937',
+    lineHeight: 1.4
+  },
+  fieldType: {
+    fontSize: '11px',
+    color: '#9ca3af',
+    fontWeight: '500'
+  },
+  fieldValue: {
+    fontSize: '14px',
     color: '#374151',
     whiteSpace: 'pre-wrap',
-    wordBreak: 'break-word'
+    wordBreak: 'break-word',
+    lineHeight: 1.5,
+    userSelect: 'text'
+  },
+  fieldValueBool: {
+    fontSize: '14px',
+    color: '#374151',
+    userSelect: 'text'
+  },
+  boolYes: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    color: '#065f46',
+    fontWeight: '600',
+    fontSize: '13px'
+  },
+  boolNo: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    color: '#9ca3af',
+    fontWeight: '600',
+    fontSize: '13px'
   },
   emptyText: {
     fontSize: '14px',
     color: '#9ca3af'
   },
   loadingAnswer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '14px',
+    padding: '48px 24px',
     border: '1px solid #e5e7eb',
-    borderRadius: '10px',
-    backgroundColor: '#ffffff',
-    padding: '24px',
-    textAlign: 'center',
+    borderRadius: '12px',
+    backgroundColor: '#ffffff'
+  },
+  loadingSpinner: {
+    width: '28px',
+    height: '28px',
+    border: '3px solid #e5e7eb',
+    borderTopColor: '#3b82f6',
+    borderRadius: '50%',
+    animation: 'spin 0.8s linear infinite'
+  },
+  loadingText: {
+    fontSize: '14px',
     color: '#6b7280'
   },
+  errorCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '16px',
+    border: '1px solid #fecaca',
+    borderRadius: '10px',
+    backgroundColor: '#fee2e2'
+  },
   errorText: {
-    color: '#dc2626',
+    color: '#991b1b',
     fontSize: '14px',
     fontWeight: '500'
   },

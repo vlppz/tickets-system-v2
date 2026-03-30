@@ -1,9 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Eye, Pencil, Plus, Search } from 'lucide-react';
+import toast from 'react-hot-toast';
 import Navbar from './Navbar';
 import LoginPage from './LoginPage';
 import Footer from './Footer';
 import { themeStyles } from '../lib/theme';
+
+const TOAST_MESSAGES = {
+  form_saved: 'Форма успешно сохранена!',
+  form_updated: 'Форма обновлена!'
+};
 
 function AdminFormsPage() {
   const [user, setUser] = useState(null);
@@ -12,6 +18,14 @@ function AdminFormsPage() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const toastKey = params.get('toast');
+    if (toastKey && TOAST_MESSAGES[toastKey]) {
+      toast.success(TOAST_MESSAGES[toastKey]);
+      params.delete('toast');
+      const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
     checkAuth();
   }, []);
 
@@ -102,7 +116,7 @@ function AdminFormsPage() {
 
     return forms.filter((form) => {
       const name = (form.name || '').toLowerCase();
-      return name.includes(normalizedSearch) || String(form.id).includes(normalizedSearch);
+      return name.includes(normalizedSearch);
     });
   }, [forms, search]);
 
@@ -168,7 +182,7 @@ function AdminFormsPage() {
                 type="text"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Поиск по названию формы или ID"
+                placeholder="Поиск по названию формы"
                 style={styles.searchInput}
               />
             </div>
@@ -184,8 +198,7 @@ function AdminFormsPage() {
               {filteredForms.map((form) => (
                 <article key={form.id} style={styles.formCard}>
                   <div style={styles.formCardHeader}>
-                    <h2 style={styles.formName}>{form.name || `Форма #${form.id}`}</h2>
-                    <span style={styles.formId}>ID: {form.id}</span>
+                    <h2 style={styles.formName}>{form.name || 'Без названия'}</h2>
                   </div>
 
                   <p style={styles.formMeta}>Обновлено: {formatDate(form.updated_at)}</p>

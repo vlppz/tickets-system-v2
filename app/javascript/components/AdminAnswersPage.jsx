@@ -4,8 +4,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  Plus,
   Search,
-  SlidersHorizontal
+  SlidersHorizontal,
+  X
 } from 'lucide-react';
 import Navbar from './Navbar';
 import LoginPage from './LoginPage';
@@ -67,11 +69,25 @@ function getStatusLabel(status) {
   return 'Ожидает проверки';
 }
 
+function parseFormContent(content) {
+  if (Array.isArray(content)) return content;
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 function AdminAnswersPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [forms, setForms] = useState([]);
   const [selectedFormId, setSelectedFormId] = useState('');
+  const [formFields, setFormFields] = useState([]);
   const [answers, setAnswers] = useState([]);
   const [meta, setMeta] = useState({
     current_page: 1,
@@ -84,6 +100,8 @@ function AdminAnswersPage() {
   const [loadingAnswers, setLoadingAnswers] = useState(false);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
+  const [fieldFilterRows, setFieldFilterRows] = useState([]);
+  const [appliedFieldFilters, setAppliedFieldFilters] = useState([]);
   const [fetchError, setFetchError] = useState('');
 
   useEffect(() => {
@@ -93,6 +111,7 @@ function AdminAnswersPage() {
   useEffect(() => {
     if (!selectedFormId) {
       setAnswers([]);
+      setFormFields([]);
       setMeta({
         current_page: 1,
         total_pages: 1,
@@ -102,8 +121,9 @@ function AdminAnswersPage() {
       return;
     }
 
+    fetchFormFields(selectedFormId);
     fetchAnswers();
-  }, [selectedFormId, page, limit, appliedFilters]);
+  }, [selectedFormId, page, limit, appliedFilters, appliedFieldFilters]);
 
   useEffect(() => {
     if (!selectedFormId) {
@@ -171,13 +191,27 @@ function AdminAnswersPage() {
     }
   };
 
+  const fetchFormFields = async (formId) => {
+    try {
+      const response = await fetch(`/api/forms/one?id=${encodeURIComponent(formId)}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data.status !== 'ok' || !data.form) return;
+      const fields = parseFormContent(data.form.content);
+      setFormFields(fields);
+    } catch (error) {
+      console.error('Failed to fetch form fields:', error);
+    }
+  };
+
   const fetchAnswers = async () => {
     if (!selectedFormId) {
       return;
     }
 
     setLoadingAnswers(true);
-
     setFetchError('');
 
     const payload = {
@@ -200,6 +234,15 @@ function AdminAnswersPage() {
 
     if (appliedFilters.dateTo) {
       payload.date_to = appliedFilters.dateTo;
+    }
+
+    const validFieldFilters = appliedFieldFilters.filter((row) => row.fieldId && row.value !== '');
+    if (validFieldFilters.length > 0) {
+      const fieldFiltersObj = {};
+      validFieldFilters.forEach((row) => {
+        fieldFiltersObj[row.fieldId] = row.value;
+      });
+      payload.field_filters = fieldFiltersObj;
     }
 
     try {
@@ -277,13 +320,30 @@ function AdminAnswersPage() {
       dateFrom: filters.dateFrom,
       dateTo: filters.dateTo
     });
+    setAppliedFieldFilters(fieldFilterRows.filter((row) => row.fieldId && row.value !== ''));
     setPage(1);
   };
 
   const handleResetFilters = () => {
     setFilters(EMPTY_FILTERS);
     setAppliedFilters(EMPTY_FILTERS);
+    setFieldFilterRows([]);
+    setAppliedFieldFilters([]);
     setPage(1);
+  };
+
+  const addFieldFilterRow = () => {
+    setFieldFilterRows((prev) => [...prev, { id: Date.now(), fieldId: '', value: '' }]);
+  };
+
+  const removeFieldFilterRow = (rowId) => {
+    setFieldFilterRows((prev) => prev.filter((row) => row.id !== rowId));
+  };
+
+  const updateFieldFilterRow = (rowId, key, value) => {
+    setFieldFilterRows((prev) =>
+      prev.map((row) => (row.id === rowId ? { ...row, [key]: value } : row))
+    );
   };
 
   const currentPage = meta.current_page || page;
@@ -327,6 +387,8 @@ function AdminAnswersPage() {
                   value={selectedFormId}
                   onChange={(event) => {
                     setSelectedFormId(event.target.value);
+                    setFieldFilterRows([]);
+                    setAppliedFieldFilters([]);
                     setPage(1);
                   }}
                   style={styles.selectInput}
@@ -362,7 +424,7 @@ function AdminAnswersPage() {
                     type="text"
                     value={filters.search}
                     onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-                    placeholder="Текст из ответа или email"
+                    placeholder="Текст из ответа, email или ФИО"
                     style={styles.textInput}
                   />
                 </div>
@@ -394,6 +456,109 @@ function AdminAnswersPage() {
                 </div>
               </label>
             </div>
+
+            {selectedFormId && formFields.length > 0 && (
+              <div style={styles.fieldFiltersSection}>
+                <div style={styles.fieldFiltersHeader}>
+                  <Filter size={14} style={{ color: '#6b7280' }} />
+                  <span style={styles.fieldFiltersTitle}>Фильтры по полям</span>
+                  <button
+                    type="button"
+                    onClick={addFieldFilterRow}
+                    style={styles.addFieldFilterBtn}
+                    data-hover="soft-brand"
+                  >
+                    <Plus size={13} />
+                    <span>Добавить</span>
+                  </button>
+                </div>
+
+                {fieldFilterRows.length === 0 ? (
+                  <p style={styles.fieldFiltersEmpty}>
+                    Нажмите «Добавить», чтобы фильтровать по значению поля
+                  </p>
+                ) : (
+                  <div style={styles.fieldFilterRows}>
+                    {fieldFilterRows.map((row) => (
+                      <div key={row.id} style={styles.fieldFilterRow}>
+                        <select
+                          value={row.fieldId}
+                          onChange={(e) => updateFieldFilterRow(row.id, 'fieldId', e.target.value)}
+                          style={styles.fieldFilterSelect}
+                        >
+                          <option value="">Выберите поле</option>
+                          {formFields.map((field) => (
+                            <option key={field.id} value={field.id}>
+                              {field.label || field.id}
+                            </option>
+                          ))}
+                        </select>
+
+                        {(() => {
+                          const field = formFields.find((f) => f.id === row.fieldId);
+                          if (!field) {
+                            return (
+                              <input
+                                type="text"
+                                value={row.value}
+                                onChange={(e) => updateFieldFilterRow(row.id, 'value', e.target.value)}
+                                placeholder="Значение"
+                                style={styles.fieldFilterValue}
+                              />
+                            );
+                          }
+                          if (field.type === 'checkbox') {
+                            return (
+                              <select
+                                value={row.value}
+                                onChange={(e) => updateFieldFilterRow(row.id, 'value', e.target.value)}
+                                style={styles.fieldFilterValue}
+                              >
+                                <option value="">Любое</option>
+                                <option value="true">Да</option>
+                                <option value="false">Нет</option>
+                              </select>
+                            );
+                          }
+                          if (field.type === 'select' && Array.isArray(field.options) && field.options.length > 0) {
+                            return (
+                              <select
+                                value={row.value}
+                                onChange={(e) => updateFieldFilterRow(row.id, 'value', e.target.value)}
+                                style={styles.fieldFilterValue}
+                              >
+                                <option value="">Любое</option>
+                                {field.options.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            );
+                          }
+                          return (
+                            <input
+                              type={field.type === 'number' ? 'number' : 'text'}
+                              value={row.value}
+                              onChange={(e) => updateFieldFilterRow(row.id, 'value', e.target.value)}
+                              placeholder="Значение"
+                              style={styles.fieldFilterValue}
+                            />
+                          );
+                        })()}
+
+                        <button
+                          type="button"
+                          onClick={() => removeFieldFilterRow(row.id)}
+                          style={styles.removeFieldFilterBtn}
+                          data-hover="red"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={styles.filtersActions}>
               <label style={styles.perPageLabel}>
@@ -617,6 +782,84 @@ const styles = themeStyles({
     borderRadius: '8px',
     backgroundColor: '#ffffff',
     fontSize: '14px'
+  },
+  fieldFiltersSection: {
+    borderTop: '1px solid #e5e7eb',
+    paddingTop: '12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px'
+  },
+  fieldFiltersHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+  fieldFiltersTitle: {
+    fontSize: '13px',
+    fontWeight: '600',
+    color: '#374151',
+    flex: 1
+  },
+  addFieldFilterBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    padding: '5px 10px',
+    borderRadius: '6px',
+    border: '1px solid #d1d5db',
+    backgroundColor: '#ffffff',
+    color: '#374151',
+    fontSize: '12px',
+    fontWeight: '500',
+    cursor: 'pointer'
+  },
+  fieldFiltersEmpty: {
+    fontSize: '13px',
+    color: '#9ca3af',
+    fontStyle: 'italic'
+  },
+  fieldFilterRows: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px'
+  },
+  fieldFilterRow: {
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'center',
+    flexWrap: 'wrap'
+  },
+  fieldFilterSelect: {
+    flex: '1 1 180px',
+    padding: '8px 10px',
+    border: '1px solid #d1d5db',
+    borderRadius: '8px',
+    backgroundColor: '#ffffff',
+    fontSize: '13px',
+    minWidth: '0'
+  },
+  fieldFilterValue: {
+    flex: '1 1 160px',
+    padding: '8px 10px',
+    border: '1px solid #d1d5db',
+    borderRadius: '8px',
+    backgroundColor: '#ffffff',
+    fontSize: '13px',
+    minWidth: '0'
+  },
+  removeFieldFilterBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '30px',
+    height: '30px',
+    borderRadius: '6px',
+    border: '1px solid #d1d5db',
+    backgroundColor: '#ffffff',
+    color: '#9ca3af',
+    cursor: 'pointer',
+    flexShrink: 0
   },
   filtersActions: {
     display: 'flex',

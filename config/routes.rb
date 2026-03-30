@@ -25,6 +25,7 @@ Rails.application.routes.draw do
   post "api/forms/answer" => "forms#answer"
   post "api/forms/answers" => "forms#get_answers"
   get "api/forms/answers/one" => "forms#get_answer"
+  get "api/forms/answers/my" => "forms#get_my_answer"
 
   # -------------- APP CONFIG --------------
   get "api/state" => "app_config#state"

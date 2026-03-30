@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { GripVertical, Plus, Trash2, Save, Type, Hash, ChevronDown, CheckSquare, AlignLeft, Settings, X, ChevronUp, ChevronDown as ChevronDownIcon } from 'lucide-react';
 import Navbar from './Navbar';
 import LoginPage from './LoginPage';
@@ -215,7 +216,7 @@ function FormBuilderPage() {
       const data = await response.json();
 
       if (data.status !== 'ok' || !data.form) {
-        alert(data.detail || 'Не удалось загрузить форму для редактирования');
+        toast.error(data.detail || 'Не удалось загрузить форму для редактирования');
         window.location.href = '/admin/forms';
         return;
       }
@@ -226,7 +227,7 @@ function FormBuilderPage() {
       setFields(parsedFields);
     } catch (error) {
       console.error('Failed to load form for editing:', error);
-      alert('Не удалось загрузить форму для редактирования');
+      toast.error('Не удалось загрузить форму для редактирования');
       window.location.href = '/admin/forms';
     }
   };
@@ -519,7 +520,7 @@ function FormBuilderPage() {
     const normalizedName = formName.trim();
 
     if (!normalizedName) {
-      alert('Введите название формы');
+      toast.error('Введите название формы');
       return;
     }
 
@@ -545,17 +546,16 @@ function FormBuilderPage() {
       if (response.ok) {
         const data = await response.json();
         if (data.status === 'ok') {
-          alert(isEditMode ? 'Форма обновлена!' : 'Форма успешно сохранена!');
-          window.location.href = '/admin/forms';
+          window.location.href = `/admin/forms?toast=${isEditMode ? 'form_updated' : 'form_saved'}`;
         } else {
-          alert('Ошибка при сохранении формы: ' + (data.detail || 'Неизвестная ошибка'));
+          toast.error('Ошибка при сохранении формы: ' + (data.detail || 'Неизвестная ошибка'));
         }
       } else {
-        alert('Ошибка при сохранении формы');
+        toast.error('Ошибка при сохранении формы');
       }
     } catch (error) {
       console.error('Error saving form:', error);
-      alert('Ошибка сети');
+      toast.error('Ошибка сети');
     } finally {
       setSubmitting(false);
     }
@@ -697,7 +697,7 @@ function FormBuilderPage() {
               required
             />
             {isEditMode && !isMobile && (
-              <span style={styles.editModeBadge}>Редактирование формы #{editingFormId}</span>
+              <span style={styles.editModeBadge}>Редактирование формы</span>
             )}
             <div style={styles.canvasActions}>
               <button

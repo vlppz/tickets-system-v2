@@ -110,14 +110,6 @@ class FormsController < ApplicationController
       return
     end
 
-    all_answers = Answer.where(user_id: current_user.id)
-    all_answers.each do |ans|
-      if ans.form_id == id
-        render json: { "status": "error", "detail": "You already submitted an answer for this form" }
-        return
-      end
-    end
-
     content = JSON.parse(form.content)
 
     answer.each do |field_id, value|
@@ -193,10 +185,35 @@ class FormsController < ApplicationController
       end
     end
 
+    _answer = Answer.find_by(user_id: current_user.id, form_id: id)
+
+    if _answer
+      _answer.update(answer: answer)
+      render json: { "status": "ok updated" }
+      return
+    end
+
     newanswer = Answer.new(answer: answer, form_id: id, user_id: current_user.id)
     newanswer.save
 
     render json: { "status": "ok" }
+  end
+
+  def get_my_answer
+    id = params[:form_id]
+
+    unless id
+      render json: { "status": "error", "detail": "Missing one or more required fields" }
+      return
+    end
+
+    answer = Answer.find_by(user_id: current_user.id, form_id: id)
+
+    unless answer
+      render json: { "status": "error", "detail": "No such answer" }
+    end
+
+    render json: serialize_answer(answer)
   end
 
   def get_answers
@@ -222,7 +239,7 @@ class FormsController < ApplicationController
 
     base_query = Answer.where(form_id: form.id)
 
-    if params[:status].present?
+    if params[:status]
       unless Answer.statuses.key?(params[:status])
         render json: { "status": "error", "detail": "Unknown status filter value" }
         return
@@ -231,7 +248,7 @@ class FormsController < ApplicationController
       base_query = base_query.where(status: params[:status])
     end
 
-    if params[:user_id].present?
+    if params[:user_id]
       user_id = params[:user_id].to_i
       if user_id <= 0
         render json: { "status": "error", "detail": "Invalid user_id filter value" }
@@ -261,12 +278,35 @@ class FormsController < ApplicationController
     end
 
     search = params[:search].to_s.strip
-    if search.present?
+    if search
       pattern = "%#{search}%"
       base_query = base_query.joins(:user).where(
         "answers.answer::text ILIKE :pattern OR users.email ILIKE :pattern OR users.name ILIKE :pattern OR users.second_name ILIKE :pattern OR users.surname ILIKE :pattern",
         pattern: pattern
       )
+    end
+
+    field_filters = params[:field_filters]
+    if field_filters
+      unless field_filters.respond_to?(:keys) and field_filters.respond_to?(:values)
+        render json: { "status": "error", "detail": "field_filters should be an object" }
+        return
+      end
+
+      unless field_filters.keys.all? { |key| key.to_s.start_with?("field_") }
+        render json: { "status": "error", "detail": "Invalid keys format" }
+        return
+      end
+
+      filter_hash = field_filters.to_unsafe_h.transform_values do |v|
+        case v
+        when "true" then true
+        when "false" then false
+        else v
+        end
+      end
+
+      base_query = base_query.where("answers.answer::jsonb @> ?", filter_hash.to_json)
     end
 
     total_count = base_query.count

@@ -10,18 +10,21 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_02_121501) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_30_180332) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+  enable_extension "pg_trgm"
 
   create_table "answers", force: :cascade do |t|
-    t.json "answer"
+    t.jsonb "answer"
     t.json "comments"
     t.datetime "created_at", null: false
     t.bigint "form_id", null: false
     t.string "status", default: "waiting"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.index "((answer)::text) gin_trgm_ops", name: "index_answers_trgm", using: :gin
+    t.index ["answer"], name: "index_answers_on_answer", using: :gin
     t.index ["form_id"], name: "index_answers_on_form_id"
     t.index ["user_id"], name: "index_answers_on_user_id"
   end
@@ -43,6 +46,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_02_121501) do
     t.string "second_name"
     t.string "surname"
     t.datetime "updated_at", null: false
+    t.index "((((((((COALESCE(email, ''::character varying))::text || ' '::text) || (COALESCE(name, ''::character varying))::text) || ' '::text) || (COALESCE(second_name, ''::character varying))::text) || ' '::text) || (COALESCE(surname, ''::character varying))::text)) gin_trgm_ops", name: "index_users_trgm", using: :gin
   end
 
   add_foreign_key "answers", "forms"

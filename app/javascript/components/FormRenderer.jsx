@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Send } from 'lucide-react';
+import toast from 'react-hot-toast';
 import ThemeToggle from './ThemeToggle';
 import { themeStyles, themeValue } from '../lib/theme';
 
-function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
+const STATUS_CONFIG = {
+  approved: { label: 'Подтверждено', color: '#065f46', bg: '#d1fae5' },
+  edits_required: { label: 'Нужны правки', color: '#991b1b', bg: '#fee2e2' },
+  waiting: { label: 'Ожидает проверки', color: '#374151', bg: '#f3f4f6' }
+};
+
+function FormRenderer({ formId, onBack, onReady, isTransitioning, isReversing }) {
   const [form, setForm] = useState(null);
   const [fields, setFields] = useState([]);
   const [formData, setFormData] = useState({});
+  const [existingAnswer, setExistingAnswer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [startAnimation, setStartAnimation] = useState(false);
@@ -116,15 +124,15 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
         display: inline-block;
         width: 20px;
         height: 20px;
-        background-color: #f9fafb;
-        border: 2px solid #d1d5db;
+        background-color: var(--color-surface-muted);
+        border: 2px solid var(--color-border-strong);
         border-radius: 4px;
         transition: all 0.2s ease;
         flex-shrink: 0;
       }
       .custom-checkbox-input:checked + .custom-checkbox {
-        background-color: #3b82f6;
-        border-color: #3b82f6;
+        background-color: var(--color-primary);
+        border-color: var(--color-primary);
       }
       .custom-checkbox-input:checked + .custom-checkbox::after {
         content: '';
@@ -134,14 +142,14 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
         transform: translate(-50%, -60%) rotate(45deg);
         width: 4px;
         height: 8px;
-        border: solid white;
+        border: solid var(--color-on-primary);
         border-width: 0 2px 2px 0;
       }
       .custom-checkbox-input:focus + .custom-checkbox {
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        box-shadow: 0 0 0 3px var(--color-brand-ring);
       }
       .custom-checkbox-input:hover + .custom-checkbox {
-        border-color: #9ca3af;
+        border-color: var(--color-text-dim);
       }
     `);
     document.head.appendChild(styleSheet);
@@ -155,27 +163,42 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
 
   const fetchForm = async () => {
     try {
-      const response = await fetch(`/api/forms/one?id=${formId}`, {
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
+      const [formResponse, myAnswerResponse] = await Promise.all([
+        fetch(`/api/forms/one?id=${formId}`, { credentials: 'include' }),
+        fetch(`/api/forms/answers/my?form_id=${formId}`, { credentials: 'include' })
+      ]);
+
+      if (formResponse.ok) {
+        const data = await formResponse.json();
         if (data.status === 'ok') {
           setForm(data.form);
           const parsedFields = JSON.parse(data.form.content);
           setFields(parsedFields);
-          
-          // Initialize form data
+
           const initialData = {};
           parsedFields.forEach(field => {
             initialData[field.id] = field.type === 'checkbox' ? false : '';
           });
-          setFormData(initialData);
-          
-          // Start animation after data is loaded
+
+          if (myAnswerResponse.ok) {
+            const myAnswerData = await myAnswerResponse.json();
+            if (myAnswerData.id && myAnswerData.answer) {
+              setExistingAnswer(myAnswerData);
+              const existingData = { ...initialData };
+              Object.entries(myAnswerData.answer || {}).forEach(([key, val]) => {
+                if (key in existingData) existingData[key] = val;
+              });
+              setFormData(existingData);
+            } else {
+              setFormData(initialData);
+            }
+          } else {
+            setFormData(initialData);
+          }
+
           setTimeout(() => {
             setStartAnimation(true);
+            if (onReady) onReady();
           }, 10);
         }
       }
@@ -228,16 +251,21 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
       
       const data = await response.json();
       
-      if (response.ok && data.status === 'ok') {
-        alert('Заявка успешно отправлена!');
+      if (response.ok && (data.status === 'ok' || data.status === 'ok updated')) {
+        if (data.status === 'ok updated') {
+          setExistingAnswer(prev => ({ ...prev, answer: formData }));
+          toast.success('Заявка успешно обновлена!');
+        } else {
+          toast.success('Заявка успешно отправлена!');
+        }
         if (onBack) onBack();
       } else {
-        alert(data.detail || 'Ошибка при отправке заявки');
+        toast.error(data.detail || 'Ошибка при отправке заявки');
         setSubmitting(false);
       }
     } catch (error) {
       console.error('Failed to submit form:', error);
-      alert('Ошибка при отправке заявки');
+      toast.error('Ошибка при отправке заявки');
       setSubmitting(false);
     }
   };
@@ -449,7 +477,7 @@ function FormRenderer({ formId, onBack, isTransitioning, isReversing }) {
                 ) : (
                   <>
                     <Send size={18} />
-                    <span>Отправить заявку</span>
+                    <span>{existingAnswer ? 'Обновить заявку' : 'Отправить заявку'}</span>
                   </>
                 )}
               </button>
@@ -543,7 +571,7 @@ const styles = themeStyles({
     boxShadow: 'none',
     position: 'relative',
     transform: 'scale(2)',
-    opacity: 1,
+    opacity: 0,
     border: 'none'
   },
   paperReversing: {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { GripVertical, X, Plus, Trash2, Save } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 function FormBuilder({ onClose, onSave }) {
   const [formName, setFormName] = useState('');
@@ -87,14 +88,14 @@ function FormBuilder({ onClose, onSave }) {
         if (data.status === 'ok') {
           onSave(data);
         } else {
-          alert('Ошибка при сохранении формы: ' + (data.detail || 'Неизвестная ошибка'));
+          toast.error('Ошибка при сохранении формы: ' + (data.detail || 'Неизвестная ошибка'));
         }
       } else {
-        alert('Ошибка при сохранении формы');
+        toast.error('Ошибка при сохранении формы');
       }
     } catch (error) {
       console.error('Error saving form:', error);
-      alert('Ошибка сети');
+      toast.error('Ошибка сети');
     } finally {
       setSubmitting(false);
     }
