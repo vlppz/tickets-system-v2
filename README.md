@@ -5,15 +5,11 @@
 
 Обновление с более стабильной архитектурой и новыми функциями
 
-Тут без вайбкода бэкенда
-
 
 --------------
 
 
 Update with stable architecture and many new features
-
-I don't vibecode backend here
 
 
 ## Architecture

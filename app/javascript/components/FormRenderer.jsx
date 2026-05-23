@@ -5,8 +5,9 @@ import ThemeToggle from './ThemeToggle';
 import { themeStyles, themeValue } from '../lib/theme';
 
 const STATUS_CONFIG = {
-  approved: { label: 'Подтверждено', color: '#065f46', bg: '#d1fae5' },
-  edits_required: { label: 'Нужны правки', color: '#991b1b', bg: '#fee2e2' },
+  approved: { label: 'Принято', color: '#065f46', bg: '#d1fae5' },
+  edits_required: { label: 'Нужны правки', color: '#92400e', bg: '#fef3c7' },
+  declined: { label: 'Отклонено', color: '#991b1b', bg: '#fee2e2' },
   waiting: { label: 'Ожидает проверки', color: '#374151', bg: '#f3f4f6' }
 };
 

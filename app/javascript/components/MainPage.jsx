@@ -6,8 +6,9 @@ import Footer from './Footer';
 import { themeStyles } from '../lib/theme';
 
 const STATUS_CONFIG = {
-  approved: { label: 'Подтверждено', color: '#065f46', bg: '#d1fae5' },
-  edits_required: { label: 'Нужны правки', color: '#991b1b', bg: '#fee2e2' },
+  approved: { label: 'Принято', color: '#065f46', bg: '#d1fae5' },
+  edits_required: { label: 'Нужны правки', color: '#92400e', bg: '#fef3c7' },
+  declined: { label: 'Отклонено', color: '#991b1b', bg: '#fee2e2' },
   waiting: { label: 'Ожидает проверки', color: '#374151', bg: '#f3f4f6' }
 };
 
@@ -206,10 +207,12 @@ function MainPage() {
                       return (
                         <div key={form.id} style={styles.formCard}>
                           <div style={styles.cardTop}>
-                            <h3 style={styles.formName}>{form.name}</h3>
-                            <span style={{ ...styles.statusBadge, backgroundColor: sc.bg, color: sc.color }}>
-                              {sc.label}
-                            </span>
+                            <div style={styles.cardTitleRow}>
+                              <h3 style={styles.formName}>{form.name}</h3>
+                              <span style={{ ...styles.statusBadge, backgroundColor: sc.bg, color: sc.color }}>
+                                {sc.label}
+                              </span>
+                            </div>
                           </div>
                           <button
                             style={styles.editButton}
@@ -267,7 +270,7 @@ const styles = themeStyles({
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 320px))',
     gap: '20px'
   },
   loadingContainer: {
@@ -308,6 +311,12 @@ const styles = themeStyles({
     flexDirection: 'column',
     gap: '10px',
     flex: 1
+  },
+  cardTitleRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: '10px'
   },
   formName: {
     fontSize: '16px',

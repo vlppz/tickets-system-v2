@@ -197,11 +197,10 @@ function AdminFormsPage() {
             <div style={styles.formsGrid}>
               {filteredForms.map((form) => (
                 <article key={form.id} style={styles.formCard}>
-                  <div style={styles.formCardHeader}>
+                  <div style={styles.formCardBody}>
                     <h2 style={styles.formName}>{form.name || 'Без названия'}</h2>
+                    <p style={styles.formMeta}>Обновлено: {formatDate(form.updated_at)}</p>
                   </div>
-
-                  <p style={styles.formMeta}>Обновлено: {formatDate(form.updated_at)}</p>
 
                   <div style={styles.formActions}>
                     <button
@@ -324,17 +323,17 @@ const styles = themeStyles({
     flexDirection: 'column',
     gap: '14px'
   },
-  formCardHeader: {
+  formCardBody: {
     display: 'flex',
-    justifyContent: 'space-between',
-    gap: '12px',
-    alignItems: 'flex-start'
+    flexDirection: 'column',
+    gap: '11px'
   },
   formName: {
     fontSize: '17px',
     color: '#1f2937',
     fontWeight: '600',
-    lineHeight: '1.35'
+    lineHeight: '1.35',
+    margin: 0
   },
   formId: {
     fontSize: '12px',
@@ -349,7 +348,6 @@ const styles = themeStyles({
     color: '#6b7280'
   },
   formActions: {
-    marginTop: 'auto',
     display: 'flex',
     gap: '8px',
     flexWrap: 'wrap'

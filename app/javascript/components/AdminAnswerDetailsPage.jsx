@@ -81,7 +81,7 @@ function getUserEmail(user) {
 function getStatusConfig(status) {
   if (status === 'approved') {
     return {
-      label: 'Подтверждено',
+      label: 'Принято',
       icon: CheckCircle,
       badgeStyle: { backgroundColor: '#d1fae5', color: '#065f46' }
     };
@@ -90,6 +90,14 @@ function getStatusConfig(status) {
   if (status === 'edits_required') {
     return {
       label: 'Нужны правки',
+      icon: XCircle,
+      badgeStyle: { backgroundColor: '#fef3c7', color: '#92400e' }
+    };
+  }
+
+  if (status === 'declined') {
+    return {
+      label: 'Отклонено',
       icon: XCircle,
       badgeStyle: { backgroundColor: '#fee2e2', color: '#991b1b' }
     };

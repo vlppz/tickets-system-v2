@@ -58,14 +58,9 @@ function getUserMeta(user, userId) {
 }
 
 function getStatusLabel(status) {
-  if (status === 'approved') {
-    return 'Подтверждено';
-  }
-
-  if (status === 'edits_required') {
-    return 'Нужны правки';
-  }
-
+  if (status === 'approved') return 'Принято';
+  if (status === 'edits_required') return 'Нужны правки';
+  if (status === 'declined') return 'Отклонено';
   return 'Ожидает проверки';
 }
 
@@ -411,8 +406,9 @@ function AdminAnswersPage() {
                 >
                   <option value="">Все статусы</option>
                   <option value="waiting">Ожидает проверки</option>
-                  <option value="approved">Подтверждено</option>
+                  <option value="approved">Принято</option>
                   <option value="edits_required">Нужны правки</option>
+                  <option value="declined">Отклонено</option>
                 </select>
               </label>
 
@@ -980,6 +976,10 @@ const styles = themeStyles({
     color: '#065f46'
   },
   status_edits_required: {
+    backgroundColor: '#fef3c7',
+    color: '#92400e'
+  },
+  status_declined: {
     backgroundColor: '#fee2e2',
     color: '#991b1b'
   },
