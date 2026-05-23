@@ -17,6 +17,9 @@ gem "jbuilder"
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 gem "bcrypt"
 
+# Load .env files in development and production without committing secrets.
+gem "dotenv-rails"
+
 # Redis for session store
 gem "redis"
 gem "hiredis"

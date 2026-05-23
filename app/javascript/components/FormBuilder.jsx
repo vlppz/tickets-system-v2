@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GripVertical, X, Plus, Trash2, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { csrfHeaders } from '../lib/csrf';
 
 function FormBuilder({ onClose, onSave }) {
   const [formName, setFormName] = useState('');
@@ -75,7 +76,7 @@ function FormBuilder({ onClose, onSave }) {
     try {
       const response = await fetch('/api/forms/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: csrfHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ 
           name: formName, 
           content: JSON.stringify(fields)

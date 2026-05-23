@@ -1,8 +1,10 @@
-class FormsController < ApplicationController
-  skip_before_action :verify_authenticity_token
+require "securerandom"
 
+class FormsController < ApplicationController
   before_action :require_login
-  before_action :require_admin, only: [:create, :update, :delete, :get_answers, :get_answer]
+  before_action :require_admin, only: [:create, :update, :delete, :get_answers, :get_answer, :update_answer_status]
+
+  MAX_TICKET_COMMENT_LENGTH = 2_000
 
   def fetch_all
     render json: { "status": "ok", "forms": Form.all }
@@ -188,15 +190,38 @@ class FormsController < ApplicationController
     _answer = Answer.find_by(user_id: current_user.id, form_id: id)
 
     if _answer
-      _answer.update(answer: answer)
-      render json: { "status": "ok updated" }
+      previous_status = _answer.status
+      comments = normalized_comments(_answer.comments)
+
+      _answer.answer = answer
+      _answer.comments = comments
+
+      if previous_status != "waiting"
+        comments << build_ticket_comment(
+          author_role: "user",
+          body: "",
+          status_from: previous_status,
+          status_to: "waiting"
+        )
+        _answer.status = "waiting"
+      end
+
+      unless _answer.save
+        render json: { "status": "error", "detail": _answer.errors.full_messages.to_sentence }, status: :unprocessable_entity
+        return
+      end
+
+      render json: { "status": "ok updated", "answer": serialize_answer(_answer) }
       return
     end
 
-    newanswer = Answer.new(answer: answer, form_id: id, user_id: current_user.id)
-    newanswer.save
+    newanswer = Answer.new(answer: answer, form_id: id, user_id: current_user.id, comments: [])
+    unless newanswer.save
+      render json: { "status": "error", "detail": newanswer.errors.full_messages.to_sentence }, status: :unprocessable_entity
+      return
+    end
 
-    render json: { "status": "ok" }
+    render json: { "status": "ok", "answer": serialize_answer(newanswer) }
   end
 
   def get_my_answer
@@ -211,6 +236,7 @@ class FormsController < ApplicationController
 
     unless answer
       render json: { "status": "error", "detail": "No such answer" }
+      return
     end
 
     render json: serialize_answer(answer)
@@ -347,6 +373,98 @@ class FormsController < ApplicationController
     render json: { "status": "ok", "answer": serialize_answer(answer) }
   end
 
+  def update_answer_status
+    answer_id = params[:answer_id] || params[:id]
+    new_status = params[:status].to_s
+    comment_body = params[:comment].to_s.strip
+
+    if answer_id.blank? || new_status.blank?
+      render json: { "status": "error", "detail": "Missing one or more required fields" }, status: :bad_request
+      return
+    end
+
+    unless Answer.statuses.key?(new_status)
+      render json: { "status": "error", "detail": "Unknown status value" }, status: :unprocessable_entity
+      return
+    end
+
+    if comment_body.length > MAX_TICKET_COMMENT_LENGTH
+      render json: { "status": "error", "detail": "Comment is too long" }, status: :unprocessable_entity
+      return
+    end
+
+    answer = Answer.includes(:user).find_by(id: answer_id)
+    unless answer
+      render json: { "status": "error", "detail": "No answer with that id" }, status: :not_found
+      return
+    end
+
+    previous_status = answer.status
+    comments = normalized_comments(answer.comments)
+    status_changed = previous_status != new_status
+
+    unless status_changed || comment_body.present?
+      render json: { "status": "error", "detail": "Nothing to update" }, status: :unprocessable_entity
+      return
+    end
+
+    comments << build_ticket_comment(
+      author_role: "admin",
+      body: comment_body,
+      status_from: status_changed ? previous_status : nil,
+      status_to: status_changed ? new_status : nil
+    )
+
+    answer.status = new_status
+    answer.comments = comments
+
+    unless answer.save
+      render json: { "status": "error", "detail": answer.errors.full_messages.to_sentence }, status: :unprocessable_entity
+      return
+    end
+
+    notify_ticket_update(answer, previous_status, new_status, comment_body)
+
+    render json: { "status": "ok", "answer": serialize_answer(answer) }
+  end
+
+  def reply_to_answer
+    answer_id = params[:answer_id] || params[:id]
+    comment_body = params[:comment].to_s.strip
+
+    if answer_id.blank? || comment_body.blank?
+      render json: { "status": "error", "detail": "Missing one or more required fields" }, status: :bad_request
+      return
+    end
+
+    if comment_body.length > MAX_TICKET_COMMENT_LENGTH
+      render json: { "status": "error", "detail": "Comment is too long" }, status: :unprocessable_entity
+      return
+    end
+
+    answer = Answer.includes(:user).find_by(id: answer_id)
+    unless answer
+      render json: { "status": "error", "detail": "No answer with that id" }, status: :not_found
+      return
+    end
+
+    unless answer.user_id == current_user.id
+      render json: { "status": "error", "detail": "Forbidden" }, status: :forbidden
+      return
+    end
+
+    comments = normalized_comments(answer.comments)
+    comments << build_ticket_comment(author_role: "user", body: comment_body)
+    answer.comments = comments
+
+    unless answer.save
+      render json: { "status": "error", "detail": answer.errors.full_messages.to_sentence }, status: :unprocessable_entity
+      return
+    end
+
+    render json: { "status": "ok", "answer": serialize_answer(answer) }
+  end
+
   private
 
   def parse_datetime_filter(value, boundary)
@@ -368,7 +486,7 @@ class FormsController < ApplicationController
       user_id: answer.user_id,
       status: answer.status,
       answer: answer.answer,
-      comments: answer.comments,
+      comments: normalized_comments(answer.comments),
       created_at: answer.created_at,
       updated_at: answer.updated_at,
       user: {
@@ -379,5 +497,39 @@ class FormsController < ApplicationController
         surname: answer.user.surname
       }
     }
+  end
+
+  def normalized_comments(comments)
+    comments.is_a?(Array) ? comments : []
+  end
+
+  def build_ticket_comment(author_role:, body:, status_from: nil, status_to: nil)
+    comment = {
+      id: SecureRandom.uuid,
+      author_id: current_user.id,
+      author_role: author_role,
+      author_name: comment_author_name(current_user),
+      body: body.to_s.strip,
+      created_at: Time.current.iso8601
+    }
+
+    if status_from.present? && status_to.present? && status_from != status_to
+      comment[:status_change] = { from: status_from, to: status_to }
+    end
+
+    comment
+  end
+
+  def comment_author_name(user)
+    full_name = [user.surname, user.name, user.second_name].select(&:present?).join(" ")
+    full_name.presence || user.email || "User ##{user.id}"
+  end
+
+  def notify_ticket_update(answer, previous_status, new_status, comment_body)
+    return if answer.user.email.blank?
+
+    TicketStatusMailer.status_changed(answer, previous_status, new_status, comment_body).deliver_later
+  rescue StandardError => error
+    Rails.logger.error("Failed to enqueue ticket update email for answer #{answer.id}: #{error.class}: #{error.message}")
   end
 end

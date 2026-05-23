@@ -102,7 +102,7 @@ Existing routes in `config/routes.rb`:
 
 - `POST /api/auth/register` creates a user.
 - `POST /api/auth/login` creates the session.
-- `GET /api/auth/logout` clears the session.
+- `DELETE /api/auth/logout` clears the session.
 - `GET /api/auth/me` returns the current user or `nil`.
 - `POST /api/forms/create` creates a form; admin only.
 - `GET /api/forms/all` lists forms; login required.
@@ -147,7 +147,7 @@ Before considering security-related work done, check these items:
 
 - SQL Injection: all queries that include user input use Active Record hashes or bound parameters. No string interpolation with params.
 - XSS: user-provided names, form labels, options, descriptions, and answer values are rendered as text, not HTML.
-- CSRF: state-changing session-cookie API requests must have CSRF protection. Current controllers call `skip_before_action :verify_authenticity_token`; do not add more skips. If working on security, restore Rails CSRF protection and send the token from React using the `csrf-token` meta tag and `X-CSRF-Token` header.
+- CSRF: Rails CSRF protection is enabled for state-changing session-cookie API requests. Do not add `skip_before_action :verify_authenticity_token`; send the token from React using the `csrf-token` meta tag and `X-CSRF-Token` header. Keep logout on a non-GET method.
 - Passwords: keep `has_secure_password` and `password_digest`; never return `password_digest` from API responses.
 - Authentication: private pages and APIs must require login.
 - Authorization: users can create/update/read only their own answers; admins can manage forms and review all answers. Direct ID changes in requests must not bypass ownership/admin checks.
@@ -216,7 +216,7 @@ Use this project-specific checklist to maximize the requested rubric score.
 
 - Test SQL injection attempts in URL params, JSON bodies, and text fields.
 - Test XSS payloads in form names, field labels/options/descriptions, and answer values.
-- Fix CSRF for cookie-authenticated state-changing endpoints before claiming full security points.
+- Verify CSRF for cookie-authenticated state-changing endpoints before claiming full security points.
 - Verify password hashes only; no raw passwords in DB, logs, API, fixtures, or seeds.
 - Verify protected pages/API endpoints fail without login.
 - Verify normal users cannot access admin APIs or other users' answers by changing IDs.
@@ -246,8 +246,6 @@ Use this project-specific checklist to maximize the requested rubric score.
 
 - `AGENTS.md` was previously empty; keep it updated when architecture changes.
 - Controller tests are currently placeholders; add meaningful integration tests for important flows.
-- README is currently too short for the documentation rubric.
-- No `docker-compose.yml` or `.env.example` exists yet.
-- CSRF protection is currently skipped in `AuthController` and `FormsController`; this is a direct security-rubric risk.
+- `docker-compose.yml` exists for app, PostgreSQL, and Redis; keep it updated when deployment config changes.
 - API routes are functional but not fully REST-style; if refactoring, do it consistently and keep the frontend in sync.
 - `config/database.yml` should be reviewed before deployment to ensure environment database settings match the intended PostgreSQL setup.

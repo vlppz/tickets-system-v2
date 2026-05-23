@@ -1,9 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Calendar, CheckCircle, Clock, FileText, User, XCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, CheckCircle, Clock, FileText, MessageSquare, Save, User, XCircle } from 'lucide-react';
 import Navbar from './Navbar';
 import LoginPage from './LoginPage';
 import Footer from './Footer';
+import StatusChangePills from './StatusChangePills';
+import { csrfHeaders, updateCsrfToken } from '../lib/csrf';
 import { themeStyles } from '../lib/theme';
+import {
+  ANSWER_STATUS_OPTIONS,
+  formatTicketDate,
+  getAnswerComments,
+  getAnswerStatusConfig,
+  getCommentRoleLabel
+} from '../lib/ticketWorkflow';
 
 function parseFormContent(content) {
   if (Array.isArray(content)) {
@@ -79,34 +88,21 @@ function getUserEmail(user) {
 }
 
 function getStatusConfig(status) {
+  const base = getAnswerStatusConfig(status);
+  let icon = Clock;
+
   if (status === 'approved') {
-    return {
-      label: 'Принято',
-      icon: CheckCircle,
-      badgeStyle: { backgroundColor: '#d1fae5', color: '#065f46' }
-    };
+    icon = CheckCircle;
   }
 
-  if (status === 'edits_required') {
-    return {
-      label: 'Нужны правки',
-      icon: XCircle,
-      badgeStyle: { backgroundColor: '#fef3c7', color: '#92400e' }
-    };
-  }
-
-  if (status === 'declined') {
-    return {
-      label: 'Отклонено',
-      icon: XCircle,
-      badgeStyle: { backgroundColor: '#fee2e2', color: '#991b1b' }
-    };
+  if (status === 'edits_required' || status === 'declined') {
+    icon = XCircle;
   }
 
   return {
-    label: 'Ожидает проверки',
-    icon: Clock,
-    badgeStyle: { backgroundColor: '#f3f4f6', color: '#374151' }
+    ...base,
+    icon,
+    badgeStyle: { backgroundColor: base.bg, color: base.color }
   };
 }
 
@@ -129,6 +125,10 @@ function AdminAnswerDetailsPage() {
   const [answerError, setAnswerError] = useState('');
   const [answer, setAnswer] = useState(null);
   const [form, setForm] = useState(null);
+  const [reviewStatus, setReviewStatus] = useState('waiting');
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewError, setReviewError] = useState('');
 
   const queryParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const answerId = queryParams.get('answer_id');
@@ -144,6 +144,12 @@ function AdminAnswerDetailsPage() {
 
     fetchAnswerDetails();
   }, [user]);
+
+  useEffect(() => {
+    if (answer?.status) {
+      setReviewStatus(answer.status);
+    }
+  }, [answer?.status]);
 
   const formFields = useMemo(() => {
     return parseFormContent(form?.content);
@@ -224,9 +230,15 @@ function AdminAnswerDetailsPage() {
   const handleLogout = async () => {
     sessionStorage.setItem('justLoggedOut', 'true');
 
-    await fetch('/api/auth/logout', {
+    const response = await fetch('/api/auth/logout', {
+      method: 'DELETE',
+      headers: csrfHeaders(),
       credentials: 'include'
     });
+    if (response.ok) {
+      const data = await response.json().catch(() => null);
+      updateCsrfToken(data?.csrf_token);
+    }
 
     window.location.href = '/';
   };
@@ -268,6 +280,51 @@ function AdminAnswerDetailsPage() {
     }, 120);
   };
 
+  const handleReviewSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!answer) {
+      return;
+    }
+
+    const trimmedComment = reviewComment.trim();
+    if (reviewStatus === answer.status && !trimmedComment) {
+      setReviewError('Измените статус или добавьте комментарий');
+      return;
+    }
+
+    setReviewSaving(true);
+    setReviewError('');
+
+    try {
+      const response = await fetch('/api/forms/answers/status', {
+        method: 'PATCH',
+        headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+        credentials: 'include',
+        body: JSON.stringify({
+          answer_id: answer.id,
+          status: reviewStatus,
+          comment: trimmedComment
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === 'error' || !data.answer) {
+        setReviewError(data.detail || 'Не удалось сохранить решение');
+        return;
+      }
+
+      setAnswer(data.answer);
+      setReviewComment('');
+    } catch (error) {
+      console.error('Failed to update answer status:', error);
+      setReviewError('Ошибка сети при сохранении решения');
+    } finally {
+      setReviewSaving(false);
+    }
+  };
+
   const answerEntries =
     answer?.answer && typeof answer.answer === 'object'
       ? Object.entries(answer.answer)
@@ -287,6 +344,8 @@ function AdminAnswerDetailsPage() {
 
   const statusConfig = answer ? getStatusConfig(answer.status) : null;
   const StatusIcon = statusConfig?.icon;
+  const comments = getAnswerComments(answer);
+  const hasReviewChanges = Boolean(answer) && (reviewStatus !== answer.status || reviewComment.trim().length > 0);
   const userFullName = answer
     ? [answer.user?.surname, answer.user?.name, answer.user?.second_name].filter(Boolean).join(' ').trim() || null
     : null;
@@ -361,6 +420,102 @@ function AdminAnswerDetailsPage() {
                     <span style={styles.metaCardValue}>{formatDateTime(answer.updated_at)}</span>
                   </div>
                 </div>
+              </div>
+
+              <div style={styles.reviewCard}>
+                <div style={styles.reviewHeader}>
+                  <div>
+                    <h2 style={styles.reviewTitle}>Решение по заявке</h2>
+                    <p style={styles.reviewSubtitle}>Измените статус и оставьте комментарий для пользователя.</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleReviewSubmit} style={styles.reviewForm}>
+                  <div style={styles.reviewControls}>
+                    <label style={styles.reviewFieldLabel}>
+                      Статус
+                      <select
+                        value={reviewStatus}
+                        onChange={(event) => setReviewStatus(event.target.value)}
+                        style={styles.reviewSelect}
+                      >
+                        {ANSWER_STATUS_OPTIONS.map((statusOption) => (
+                          <option key={statusOption.value} value={statusOption.value}>
+                            {statusOption.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label style={styles.reviewFieldLabel}>
+                      Комментарий
+                      <textarea
+                        value={reviewComment}
+                        onChange={(event) => setReviewComment(event.target.value)}
+                        placeholder="Например: приложите недостающие данные"
+                        rows={4}
+                        maxLength={2000}
+                        style={styles.reviewTextarea}
+                      />
+                    </label>
+                  </div>
+
+                  {reviewError && <p style={styles.reviewError}>{reviewError}</p>}
+
+                  <div style={styles.reviewActions}>
+                    <button
+                      type="submit"
+                      disabled={reviewSaving || !hasReviewChanges}
+                      style={{
+                        ...styles.saveReviewButton,
+                        ...((reviewSaving || !hasReviewChanges) ? styles.saveReviewButtonDisabled : {})
+                      }}
+                      data-hover="blue"
+                    >
+                      <Save size={15} />
+                      <span>{reviewSaving ? 'Сохранение...' : 'Сохранить решение'}</span>
+                    </button>
+                    <span style={styles.commentLimit}>{reviewComment.trim().length}/2000</span>
+                  </div>
+                </form>
+              </div>
+
+              <div style={styles.commentsCard}>
+                <div style={styles.commentsHeader}>
+                  <MessageSquare size={16} style={styles.commentsIcon} />
+                  <h2 style={styles.commentsTitle}>Обсуждение</h2>
+                </div>
+
+                {comments.length === 0 ? (
+                  <p style={styles.emptyText}>Комментариев пока нет</p>
+                ) : (
+                  <div style={styles.commentsList}>
+                    {comments.map((comment, index) => {
+                      const body = typeof comment?.body === 'string' ? comment.body.trim() : '';
+                      const isAdminComment = comment?.author_role === 'admin';
+
+                      return (
+                        <div
+                          key={comment?.id || index}
+                          style={{
+                            ...styles.commentItem,
+                            ...(isAdminComment ? styles.adminCommentItem : styles.userCommentItem)
+                          }}
+                        >
+                          <div style={styles.commentHeader}>
+                            <span style={styles.commentRole}>{getCommentRoleLabel(comment?.author_role)}</span>
+                            {comment?.author_name && <span style={styles.commentAuthor}>{comment.author_name}</span>}
+                            <span style={styles.commentDate}>{formatTicketDate(comment?.created_at)}</span>
+                          </div>
+
+                          <StatusChangePills statusChange={comment?.status_change} />
+
+                          {body && <p style={styles.commentBody}>{body}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div style={styles.fieldsCard}>
@@ -541,6 +696,190 @@ const styles = themeStyles({
   metaCardSub: {
     fontSize: '12px',
     color: '#6b7280',
+    userSelect: 'text'
+  },
+  reviewCard: {
+    border: '1px solid #dbeafe',
+    borderRadius: '12px',
+    backgroundColor: '#eff6ff',
+    padding: '18px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px'
+  },
+  reviewHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: '12px'
+  },
+  reviewTitle: {
+    fontSize: '16px',
+    fontWeight: '700',
+    color: '#1f2937',
+    margin: 0
+  },
+  reviewSubtitle: {
+    fontSize: '13px',
+    color: '#4b5563',
+    margin: '4px 0 0'
+  },
+  reviewForm: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px'
+  },
+  reviewControls: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+    gap: '12px',
+    alignItems: 'start'
+  },
+  reviewFieldLabel: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '7px',
+    fontSize: '13px',
+    fontWeight: '600',
+    color: '#374151'
+  },
+  reviewSelect: {
+    width: '100%',
+    padding: '10px 12px',
+    border: '1px solid #bfdbfe',
+    borderRadius: '8px',
+    backgroundColor: '#ffffff',
+    color: '#1f2937',
+    fontSize: '14px'
+  },
+  reviewTextarea: {
+    width: '100%',
+    minHeight: '96px',
+    padding: '10px 12px',
+    border: '1px solid #bfdbfe',
+    borderRadius: '8px',
+    backgroundColor: '#ffffff',
+    color: '#1f2937',
+    fontSize: '14px',
+    fontFamily: 'inherit',
+    resize: 'vertical',
+    lineHeight: 1.45
+  },
+  reviewError: {
+    margin: 0,
+    fontSize: '13px',
+    color: '#dc2626',
+    fontWeight: '600'
+  },
+  reviewActions: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    flexWrap: 'wrap'
+  },
+  saveReviewButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '10px 14px',
+    borderRadius: '8px',
+    border: 'none',
+    backgroundColor: 'var(--color-primary)',
+    color: 'var(--color-on-primary)',
+    fontSize: '14px',
+    fontWeight: '700',
+    cursor: 'pointer'
+  },
+  saveReviewButtonDisabled: {
+    backgroundColor: '#9ca3af',
+    cursor: 'not-allowed'
+  },
+  commentLimit: {
+    fontSize: '12px',
+    color: '#6b7280'
+  },
+  commentsCard: {
+    border: '1px solid #e5e7eb',
+    borderRadius: '12px',
+    backgroundColor: '#ffffff',
+    padding: '18px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px'
+  },
+  commentsHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+  commentsIcon: {
+    color: '#3b82f6'
+  },
+  commentsTitle: {
+    fontSize: '15px',
+    fontWeight: '700',
+    color: '#374151',
+    margin: 0
+  },
+  commentsList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px'
+  },
+  commentItem: {
+    border: '1px solid #e5e7eb',
+    borderRadius: '10px',
+    padding: '12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '7px'
+  },
+  adminCommentItem: {
+    borderLeft: '4px solid #3b82f6',
+    backgroundColor: '#eff6ff'
+  },
+  userCommentItem: {
+    borderLeft: '4px solid #10b981',
+    backgroundColor: '#f9fafb'
+  },
+  commentHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexWrap: 'wrap'
+  },
+  commentRole: {
+    fontSize: '12px',
+    fontWeight: '700',
+    color: '#1f2937'
+  },
+  commentAuthor: {
+    fontSize: '12px',
+    color: '#4b5563'
+  },
+  commentDate: {
+    fontSize: '12px',
+    color: '#9ca3af',
+    marginLeft: 'auto'
+  },
+  statusChangeLine: {
+    display: 'inline-flex',
+    alignSelf: 'flex-start',
+    padding: '4px 8px',
+    borderRadius: '999px',
+    backgroundColor: '#ffffff',
+    color: '#374151',
+    fontSize: '12px',
+    fontWeight: '600'
+  },
+  commentBody: {
+    margin: 0,
+    color: '#1f2937',
+    fontSize: '14px',
+    lineHeight: 1.5,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
     userSelect: 'text'
   },
   fieldsCard: {

@@ -1,16 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
+import { MessageSquare, Send, X } from 'lucide-react';
 import Navbar from './Navbar';
 import LoginPage from './LoginPage';
 import FormRenderer from './FormRenderer';
 import Footer from './Footer';
+import StatusChangePills from './StatusChangePills';
+import { csrfHeaders, updateCsrfToken } from '../lib/csrf';
 import { themeStyles } from '../lib/theme';
+import { formatTicketDate, getAnswerComments, getAnswerStatusConfig, getCommentRoleLabel } from '../lib/ticketWorkflow';
 
-const STATUS_CONFIG = {
-  approved: { label: 'Принято', color: '#065f46', bg: '#d1fae5' },
-  edits_required: { label: 'Нужны правки', color: '#92400e', bg: '#fef3c7' },
-  declined: { label: 'Отклонено', color: '#991b1b', bg: '#fee2e2' },
-  waiting: { label: 'Ожидает проверки', color: '#374151', bg: '#f3f4f6' }
-};
+function getSubmittedButtonLabel(status) {
+  if (status === 'edits_required') return 'Исправить заявку';
+  if (status === 'approved') return 'Открыть заявку';
+  return 'Редактировать';
+}
 
 function MainPage() {
   const [user, setUser] = useState(null);
@@ -22,6 +25,12 @@ function MainPage() {
   const [selectedFormId, setSelectedFormId] = useState(null);
   const [expandingToForm, setExpandingToForm] = useState(false);
   const [shrinkingFromForm, setShrinkingFromForm] = useState(false);
+  const [commentsFormId, setCommentsFormId] = useState(null);
+  const [commentReply, setCommentReply] = useState('');
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [commentError, setCommentError] = useState('');
+  const [commentsClosing, setCommentsClosing] = useState(false);
+  const commentsCloseTimerRef = useRef(null);
 
   useEffect(() => {
     if (sessionStorage.getItem('justLoggedOut') === 'true') {
@@ -30,6 +39,14 @@ function MainPage() {
       setTimeout(() => setTransitioning(false), 800);
     }
     checkAuth();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (commentsCloseTimerRef.current) {
+        window.clearTimeout(commentsCloseTimerRef.current);
+      }
+    };
   }, []);
 
   const checkAuth = async () => {
@@ -78,7 +95,15 @@ function MainPage() {
 
   const handleLogout = async () => {
     setTransitioning(true);
-    await fetch('/api/auth/logout', { credentials: 'include' });
+    const response = await fetch('/api/auth/logout', {
+      method: 'DELETE',
+      headers: csrfHeaders(),
+      credentials: 'include'
+    });
+    if (response.ok) {
+      const data = await response.json().catch(() => null);
+      updateCsrfToken(data?.csrf_token);
+    }
     setTimeout(() => {
       setUser(null);
       setForms([]);
@@ -121,6 +146,75 @@ function MainPage() {
     if (page === 'answers') window.location.href = '/admin/answers';
   };
 
+  const handleOpenComments = (formId) => {
+    if (commentsCloseTimerRef.current) {
+      window.clearTimeout(commentsCloseTimerRef.current);
+      commentsCloseTimerRef.current = null;
+    }
+
+    setCommentsClosing(false);
+    setCommentsFormId(formId);
+    setCommentReply('');
+    setCommentError('');
+  };
+
+  const handleCloseComments = () => {
+    if (commentSubmitting) return;
+
+    setCommentsClosing(true);
+    commentsCloseTimerRef.current = window.setTimeout(() => {
+      setCommentsFormId(null);
+      setCommentReply('');
+      setCommentError('');
+      setCommentsClosing(false);
+      commentsCloseTimerRef.current = null;
+    }, 190);
+  };
+
+  const handleCommentReplySubmit = async (event) => {
+    event.preventDefault();
+
+    const trimmedReply = commentReply.trim();
+    const answer = myAnswers[commentsFormId];
+
+    if (!answer || !trimmedReply) {
+      return;
+    }
+
+    setCommentSubmitting(true);
+    setCommentError('');
+
+    try {
+      const response = await fetch('/api/forms/answers/reply', {
+        method: 'POST',
+        headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+        credentials: 'include',
+        body: JSON.stringify({
+          answer_id: answer.id,
+          comment: trimmedReply
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === 'error' || !data.answer) {
+        setCommentError(data.detail || 'Не удалось отправить комментарий');
+        return;
+      }
+
+      setMyAnswers((prev) => ({
+        ...prev,
+        [commentsFormId]: data.answer
+      }));
+      setCommentReply('');
+    } catch (error) {
+      console.error('Failed to send ticket comment:', error);
+      setCommentError('Ошибка сети при отправке комментария');
+    } finally {
+      setCommentSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
@@ -131,6 +225,12 @@ function MainPage() {
 
   const submittedForms = forms.filter(f => myAnswers[f.id]);
   const availableForms = forms.filter(f => !myAnswers[f.id]);
+  const activeCommentsAnswer = commentsFormId ? myAnswers[commentsFormId] : null;
+  const activeCommentsForm = commentsFormId
+    ? forms.find((form) => String(form.id) === String(commentsFormId))
+    : null;
+  const activeComments = getAnswerComments(activeCommentsAnswer);
+  const activeCommentsStatus = activeCommentsAnswer ? getAnswerStatusConfig(activeCommentsAnswer.status) : null;
 
   return (
     <>
@@ -203,7 +303,8 @@ function MainPage() {
                   <div style={styles.grid}>
                     {submittedForms.map(form => {
                       const ans = myAnswers[form.id];
-                      const sc = STATUS_CONFIG[ans.status] || STATUS_CONFIG.waiting;
+                      const sc = getAnswerStatusConfig(ans.status);
+                      const commentsCount = getAnswerComments(ans).length;
                       return (
                         <div key={form.id} style={styles.formCard}>
                           <div style={styles.cardTop}>
@@ -214,13 +315,25 @@ function MainPage() {
                               </span>
                             </div>
                           </div>
-                          <button
-                            style={styles.editButton}
-                            onClick={() => handleViewForm(form.id)}
-                            data-hover="gray"
-                          >
-                            Редактировать
-                          </button>
+                          <div style={styles.cardActions}>
+                            <button
+                              style={styles.editButton}
+                              onClick={() => handleViewForm(form.id)}
+                              data-hover="gray"
+                            >
+                              {getSubmittedButtonLabel(ans.status)}
+                            </button>
+                            <button
+                              type="button"
+                              style={styles.commentsButton}
+                              onClick={() => handleOpenComments(form.id)}
+                              data-hover="blue"
+                            >
+                              <MessageSquare size={15} />
+                              <span>Комментарии</span>
+                              {commentsCount > 0 && <span style={styles.commentsCountBadge}>{commentsCount}</span>}
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -232,6 +345,187 @@ function MainPage() {
           </main>
 
           <Footer />
+        </div>
+      )}
+
+      {activeCommentsAnswer && activeCommentsForm && (
+        <div
+          style={styles.commentsOverlay}
+          className={commentsClosing ? 'comments-overlay comments-overlay-closing' : 'comments-overlay'}
+          onClick={handleCloseComments}
+        >
+          <section
+            style={styles.commentsDialog}
+            className={commentsClosing ? 'comments-dialog comments-dialog-closing' : 'comments-dialog'}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Комментарии к заявке"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={styles.commentsDialogHeader}>
+              <div style={styles.commentsDialogTitleBlock}>
+                <div style={styles.commentsDialogTitleRow}>
+                  <MessageSquare size={18} style={styles.commentsDialogIcon} />
+                  <h2 style={styles.commentsDialogTitle}>Комментарии</h2>
+                </div>
+                <p style={styles.commentsDialogSubtitle}>{activeCommentsForm.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseComments}
+                style={styles.closeDialogButton}
+                className="comments-close-button"
+                aria-label="Закрыть комментарии"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={styles.commentsDialogStatusRow}>
+              <span style={{ ...styles.statusBadge, backgroundColor: activeCommentsStatus.bg, color: activeCommentsStatus.color }}>
+                {activeCommentsStatus.label}
+              </span>
+              <span style={styles.commentsDialogMeta}>Сообщений: {activeComments.length}</span>
+            </div>
+
+            <div style={styles.commentsDialogBody}>
+              {activeComments.length === 0 ? (
+                <div style={styles.commentsEmptyState}>
+                  <p style={styles.commentsEmptyTitle}>Обсуждение пока пустое</p>
+                  <p style={styles.commentsEmptySubtitle}>Напишите администратору уточнение по этой заявке.</p>
+                </div>
+              ) : (
+                <div style={styles.commentsThread}>
+                  {activeComments.map((comment, index) => {
+                    const body = typeof comment?.body === 'string' ? comment.body.trim() : '';
+                    const isAdminComment = comment?.author_role === 'admin';
+
+                    return (
+                      <div
+                        key={comment?.id || index}
+                        style={{
+                          ...styles.commentBubble,
+                          ...(isAdminComment ? styles.commentBubbleAdmin : styles.commentBubbleUser)
+                        }}
+                      >
+                        <div style={styles.commentBubbleHeader}>
+                          <span style={styles.commentBubbleRole}>{getCommentRoleLabel(comment?.author_role)}</span>
+                          <span style={styles.commentBubbleDate}>{formatTicketDate(comment?.created_at)}</span>
+                        </div>
+                        <StatusChangePills statusChange={comment?.status_change} />
+                        {body && <p style={styles.commentBubbleBody}>{body}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleCommentReplySubmit} style={styles.commentReplyForm}>
+              <textarea
+                value={commentReply}
+                onChange={(event) => setCommentReply(event.target.value)}
+                placeholder="Напишите сообщение администратору"
+                rows={3}
+                maxLength={2000}
+                style={styles.commentReplyTextarea}
+              />
+              <div style={styles.commentReplyFooter}>
+                {commentError && <span style={styles.commentError}>{commentError}</span>}
+                <span style={styles.commentLimit}>{commentReply.trim().length}/2000</span>
+                <button
+                  type="submit"
+                  disabled={commentSubmitting || !commentReply.trim()}
+                  style={{
+                    ...styles.sendCommentButton,
+                    ...((commentSubmitting || !commentReply.trim()) ? styles.sendCommentButtonDisabled : {})
+                  }}
+                  data-hover="blue"
+                >
+                  <Send size={15} />
+                  <span>{commentSubmitting ? 'Отправка...' : 'Отправить'}</span>
+                </button>
+              </div>
+            </form>
+          </section>
+          <style>{`
+            @keyframes commentsOverlayIn {
+              from {
+                opacity: 0;
+                backdrop-filter: blur(0px);
+                -webkit-backdrop-filter: blur(0px);
+              }
+              to {
+                opacity: 1;
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+              }
+            }
+
+            @keyframes commentsDialogIn {
+              from {
+                opacity: 0;
+                transform: translateY(18px) scale(0.97);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+              }
+            }
+
+            @keyframes commentsOverlayOut {
+              from {
+                opacity: 1;
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+              }
+              to {
+                opacity: 0;
+                backdrop-filter: blur(0px);
+                -webkit-backdrop-filter: blur(0px);
+              }
+            }
+
+            @keyframes commentsDialogOut {
+              from {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+              }
+              to {
+                opacity: 0;
+                transform: translateY(14px) scale(0.98);
+              }
+            }
+
+            .comments-overlay {
+              animation: commentsOverlayIn 0.22s ease-out both;
+            }
+
+            .comments-dialog {
+              animation: commentsDialogIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+            }
+
+            .comments-overlay-closing {
+              animation: commentsOverlayOut 0.18s ease-in both;
+            }
+
+            .comments-dialog-closing {
+              animation: commentsDialogOut 0.18s ease-in both;
+            }
+
+            .comments-close-button:hover:not(:disabled) {
+              color: var(--color-danger) !important;
+              border-color: var(--color-danger-border) !important;
+              background-color: var(--color-danger-surface) !important;
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+              .comments-overlay,
+              .comments-dialog {
+                animation: none;
+              }
+            }
+          `}</style>
         </div>
       )}
     </>
@@ -342,6 +636,11 @@ const styles = themeStyles({
     fontWeight: '500',
     cursor: 'pointer'
   },
+  cardActions: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px'
+  },
   editButton: {
     width: '100%',
     padding: '10px 16px',
@@ -351,7 +650,254 @@ const styles = themeStyles({
     borderRadius: '8px',
     fontSize: '14px',
     fontWeight: '500',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease'
+  },
+  commentsButton: {
+    width: '100%',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '7px',
+    padding: '10px 12px',
+    backgroundColor: 'var(--color-primary)',
+    color: 'var(--color-on-primary)',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '14px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease'
+  },
+  commentsCountBadge: {
+    minWidth: '20px',
+    height: '20px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 6px',
+    borderRadius: '999px',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    color: 'inherit',
+    fontSize: '12px',
+    fontWeight: '700'
+  },
+  commentsOverlay: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 1000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '24px',
+    backgroundColor: 'rgba(17, 24, 39, 0.46)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+  },
+  commentsDialog: {
+    width: 'min(720px, 100%)',
+    maxHeight: 'calc(100vh - 48px)',
+    borderRadius: '18px',
+    backgroundColor: '#ffffff',
+    border: '1px solid #e5e7eb',
+    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+  },
+  commentsDialogHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: '16px',
+    padding: '20px 20px 14px',
+    borderBottom: '1px solid #e5e7eb'
+  },
+  commentsDialogTitleBlock: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '5px',
+    minWidth: 0
+  },
+  commentsDialogTitleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+  commentsDialogIcon: {
+    color: '#3b82f6',
+    flexShrink: 0
+  },
+  commentsDialogTitle: {
+    margin: 0,
+    fontSize: '20px',
+    fontWeight: '700',
+    color: '#1f2937'
+  },
+  commentsDialogSubtitle: {
+    margin: 0,
+    color: '#6b7280',
+    fontSize: '14px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
+  },
+  closeDialogButton: {
+    width: '34px',
+    height: '34px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: '1px solid #d1d5db',
+    borderRadius: '10px',
+    backgroundColor: '#ffffff',
+    color: '#4b5563',
+    cursor: 'pointer',
+    flexShrink: 0,
+    transition: 'background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease'
+  },
+  commentsDialogStatusRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '12px',
+    flexWrap: 'wrap',
+    padding: '14px 20px',
+    backgroundColor: '#f9fafb',
+    borderBottom: '1px solid #e5e7eb'
+  },
+  commentsDialogMeta: {
+    fontSize: '13px',
+    color: '#6b7280',
+    fontWeight: '600'
+  },
+  commentsDialogBody: {
+    overflowY: 'auto',
+    padding: '18px 20px',
+    backgroundColor: '#ffffff'
+  },
+  commentsEmptyState: {
+    border: '1px dashed #d1d5db',
+    borderRadius: '12px',
+    padding: '24px 16px',
+    textAlign: 'center',
+    backgroundColor: '#f9fafb'
+  },
+  commentsEmptyTitle: {
+    margin: '0 0 6px',
+    color: '#1f2937',
+    fontSize: '16px',
+    fontWeight: '700'
+  },
+  commentsEmptySubtitle: {
+    margin: 0,
+    color: '#6b7280',
+    fontSize: '14px'
+  },
+  commentsThread: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px'
+  },
+  commentBubble: {
+    border: '1px solid #e5e7eb',
+    borderRadius: '14px',
+    padding: '12px 14px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px'
+  },
+  commentBubbleAdmin: {
+    borderLeft: '4px solid #3b82f6',
+    backgroundColor: '#eff6ff'
+  },
+  commentBubbleUser: {
+    borderLeft: '4px solid #10b981',
+    backgroundColor: '#f9fafb'
+  },
+  commentBubbleHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '10px',
+    flexWrap: 'wrap'
+  },
+  commentBubbleRole: {
+    fontSize: '13px',
+    color: '#1f2937',
+    fontWeight: '700'
+  },
+  commentBubbleDate: {
+    fontSize: '12px',
+    color: '#6b7280'
+  },
+  commentBubbleBody: {
+    margin: 0,
+    fontSize: '14px',
+    color: '#1f2937',
+    lineHeight: 1.5,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word'
+  },
+  commentReplyForm: {
+    padding: '16px 20px 20px',
+    borderTop: '1px solid #e5e7eb',
+    backgroundColor: '#f9fafb',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px'
+  },
+  commentReplyTextarea: {
+    width: '100%',
+    padding: '11px 12px',
+    border: '1px solid #d1d5db',
+    borderRadius: '10px',
+    backgroundColor: '#ffffff',
+    color: '#1f2937',
+    fontSize: '14px',
+    fontFamily: 'inherit',
+    resize: 'vertical',
+    lineHeight: 1.45
+  },
+  commentReplyFooter: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: '10px',
+    flexWrap: 'wrap'
+  },
+  commentError: {
+    marginRight: 'auto',
+    fontSize: '13px',
+    color: '#dc2626',
+    fontWeight: '600'
+  },
+  commentLimit: {
+    color: '#6b7280',
+    fontSize: '12px'
+  },
+  sendCommentButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '7px',
+    padding: '10px 14px',
+    border: 'none',
+    borderRadius: '10px',
+    backgroundColor: 'var(--color-primary)',
+    color: 'var(--color-on-primary)',
+    fontSize: '14px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease'
+  },
+  sendCommentButtonDisabled: {
+    backgroundColor: '#9ca3af',
+    cursor: 'not-allowed'
   }
 });
 

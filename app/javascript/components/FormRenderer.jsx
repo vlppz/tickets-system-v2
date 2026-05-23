@@ -2,14 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ThemeToggle from './ThemeToggle';
+import { csrfHeaders } from '../lib/csrf';
 import { themeStyles, themeValue } from '../lib/theme';
+import { getAnswerStatusConfig } from '../lib/ticketWorkflow';
 
-const STATUS_CONFIG = {
-  approved: { label: 'Принято', color: '#065f46', bg: '#d1fae5' },
-  edits_required: { label: 'Нужны правки', color: '#92400e', bg: '#fef3c7' },
-  declined: { label: 'Отклонено', color: '#991b1b', bg: '#fee2e2' },
-  waiting: { label: 'Ожидает проверки', color: '#374151', bg: '#f3f4f6' }
-};
+function getStatusHelpText(status) {
+  if (status === 'approved') {
+    return 'Заявка принята. Если вы измените поля, она снова уйдет на проверку.';
+  }
+
+  if (status === 'edits_required') {
+    return 'Администратор запросил правки. Обновите поля ниже и отправьте заявку повторно.';
+  }
+
+  if (status === 'declined') {
+    return 'Заявка отклонена. Переписка с администратором доступна через кнопку «Комментарии» на карточке заявки.';
+  }
+
+  return 'Заявка ожидает проверки. Здесь можно обновить отправленные данные.';
+}
 
 function FormRenderer({ formId, onBack, onReady, isTransitioning, isReversing }) {
   const [form, setForm] = useState(null);
@@ -240,9 +251,7 @@ function FormRenderer({ formId, onBack, onReady, isTransitioning, isReversing })
     try {
       const response = await fetch('/api/forms/answer', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: csrfHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify({
           form_id: formId,
@@ -253,13 +262,20 @@ function FormRenderer({ formId, onBack, onReady, isTransitioning, isReversing })
       const data = await response.json();
       
       if (response.ok && (data.status === 'ok' || data.status === 'ok updated')) {
+        if (data.answer) {
+          setExistingAnswer(data.answer);
+        }
+
         if (data.status === 'ok updated') {
-          setExistingAnswer(prev => ({ ...prev, answer: formData }));
           toast.success('Заявка успешно обновлена!');
         } else {
           toast.success('Заявка успешно отправлена!');
         }
-        if (onBack) onBack();
+        if (onBack) {
+          onBack();
+        } else {
+          setSubmitting(false);
+        }
       } else {
         toast.error(data.detail || 'Ошибка при отправке заявки');
         setSubmitting(false);
@@ -413,6 +429,8 @@ function FormRenderer({ formId, onBack, onReady, isTransitioning, isReversing })
     );
   }
 
+  const statusConfig = existingAnswer ? getAnswerStatusConfig(existingAnswer.status) : null;
+
   return (
     <div style={styles.container}>
       <div style={isReversing ? styles.rightPanelReversing : (startAnimation ? styles.rightPanel : styles.rightPanelStatic)}></div>
@@ -439,7 +457,23 @@ function FormRenderer({ formId, onBack, onReady, isTransitioning, isReversing })
             )}
             
             <h1 style={{...styles.formTitle, ...(startAnimation ? {} : { opacity: 0 })}}>{form.name}</h1>
-            
+
+            {existingAnswer && (
+              <div
+                style={{
+                  ...styles.ticketStatusPanel,
+                  ...(startAnimation ? { animation: 'fadeInUp 0.4s ease-out 0.72s both' } : { opacity: 0 })
+                }}
+              >
+                <div style={styles.ticketStatusHeader}>
+                  <span style={{ ...styles.statusBadge, backgroundColor: statusConfig.bg, color: statusConfig.color }}>
+                    {statusConfig.label}
+                  </span>
+                  <p style={styles.statusHelpText}>{getStatusHelpText(existingAnswer.status)}</p>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} style={styles.form}>
               {fields.map((field, index) => (
                 <div 
@@ -632,6 +666,36 @@ const styles = themeStyles({
     marginBottom: '32px',
     textAlign: 'left',
     animation: 'fadeInDown 0.5s ease-out 0.7s both'
+  },
+  ticketStatusPanel: {
+    border: '1px solid #dbeafe',
+    borderRadius: '12px',
+    backgroundColor: '#eff6ff',
+    padding: '16px',
+    marginBottom: '24px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px'
+  },
+  ticketStatusHeader: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '8px'
+  },
+  statusBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    borderRadius: '999px',
+    padding: '5px 10px',
+    fontSize: '12px',
+    fontWeight: '700'
+  },
+  statusHelpText: {
+    margin: 0,
+    color: '#374151',
+    fontSize: '14px',
+    lineHeight: 1.45
   },
   form: {
     display: 'flex',

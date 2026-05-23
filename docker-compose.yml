@@ -1,0 +1,61 @@
+services:
+  app:
+    build: .
+    image: tickets_system_v2:local
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "1"
+      RAILS_SERVE_STATIC_FILES: "1"
+      RAILS_MAX_THREADS: "5"
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-docker-compose-development-secret-key-base-change-me}
+      DATABASE_URL: postgres://postgres:postgres@db:5432/tickets_system_v2_production
+      CACHE_DATABASE_URL: postgres://postgres:postgres@db:5432/tickets_system_v2_production_cache
+      QUEUE_DATABASE_URL: postgres://postgres:postgres@db:5432/tickets_system_v2_production_queue
+      CABLE_DATABASE_URL: postgres://postgres:postgres@db:5432/tickets_system_v2_production_cable
+      REDIS_URL: redis://redis:6379/0
+      SOLID_QUEUE_IN_PUMA: "1"
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/up || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tickets_system_v2_production
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tickets_system_v2_production"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

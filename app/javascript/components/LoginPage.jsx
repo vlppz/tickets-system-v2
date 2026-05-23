@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, Lock, Mail } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
+import { csrfHeaders, updateCsrfToken } from '../lib/csrf';
 import { themeStyles } from '../lib/theme';
 
 function LoginPage({ onLoginSuccess, isTransitioning, isReversing }) {
@@ -52,13 +53,14 @@ function LoginForm({ onSuccess, onSwitchToRegister }) {
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: csrfHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ email, password }),
         credentials: 'include'
       });
 
       if (response.ok) {
         const data = await response.json();
+        updateCsrfToken(data.csrf_token);
         // Trigger animation before calling onSuccess
         setTimeout(() => {
           onSuccess(data.user);
@@ -148,7 +150,7 @@ function RegisterForm({ onSuccess, onSwitchToLogin }) {
     try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: csrfHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ surname, name, second_name: secondName, email, password }),
         credentials: 'include'
       });
@@ -158,13 +160,14 @@ function RegisterForm({ onSuccess, onSwitchToLogin }) {
       if (response.ok && data.status !== 'error') {
         const loginResponse = await fetch('/api/auth/login', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: csrfHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ email, password }),
           credentials: 'include'
         });
 
         if (loginResponse.ok) {
           const loginData = await loginResponse.json();
+          updateCsrfToken(loginData.csrf_token);
           onSuccess(loginData.user);
         } else {
           setError('Ошибка входа после регистрации');

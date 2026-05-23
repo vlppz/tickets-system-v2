@@ -1,5 +1,5 @@
 class AuthController < ApplicationController
-  skip_before_action :verify_authenticity_token
+  before_action :require_login, only: :logout
 
   def register
     name = params[:name]
@@ -30,7 +30,7 @@ class AuthController < ApplicationController
 
     if user&.authenticate(params[:password])
       session[:user_id] = user.id
-      render json: { user: current_user.as_json(except: "password_digest") }
+      render json: { user: current_user.as_json(except: "password_digest"), csrf_token: form_authenticity_token }
     else
       render json: { error: "Invalid credentials" }, status: :unauthorized
     end
@@ -39,7 +39,7 @@ class AuthController < ApplicationController
   def logout
     session.delete(:user_id)
     reset_session
-    head :no_content
+    render json: { csrf_token: form_authenticity_token }
   end
 
   def me

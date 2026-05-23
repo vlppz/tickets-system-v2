@@ -13,7 +13,7 @@ Rails.application.routes.draw do
   # -------------- AUTH --------------
   post "api/auth/register" => "auth#register"
   post "api/auth/login" => "auth#login"
-  get "api/auth/logout" => "auth#logout"
+  delete "api/auth/logout" => "auth#logout"
   get "api/auth/me" => "auth#me"
 
   # -------------- FORMS --------------
@@ -26,6 +26,8 @@ Rails.application.routes.draw do
   post "api/forms/answers" => "forms#get_answers"
   get "api/forms/answers/one" => "forms#get_answer"
   get "api/forms/answers/my" => "forms#get_my_answer"
+  patch "api/forms/answers/status" => "forms#update_answer_status"
+  post "api/forms/answers/reply" => "forms#reply_to_answer"
 
   # -------------- APP CONFIG --------------
   get "api/state" => "app_config#state"

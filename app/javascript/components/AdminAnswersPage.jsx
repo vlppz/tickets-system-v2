@@ -12,7 +12,9 @@ import {
 import Navbar from './Navbar';
 import LoginPage from './LoginPage';
 import Footer from './Footer';
+import { csrfHeaders, updateCsrfToken } from '../lib/csrf';
 import { themeStyles } from '../lib/theme';
+import { ANSWER_STATUS_OPTIONS, getAnswerComments, getAnswerStatusConfig } from '../lib/ticketWorkflow';
 
 const EMPTY_FILTERS = {
   status: '',
@@ -55,13 +57,6 @@ function getUserMeta(user, userId) {
   }
 
   return `ID пользователя: ${userId}`;
-}
-
-function getStatusLabel(status) {
-  if (status === 'approved') return 'Принято';
-  if (status === 'edits_required') return 'Нужны правки';
-  if (status === 'declined') return 'Отклонено';
-  return 'Ожидает проверки';
 }
 
 function parseFormContent(content) {
@@ -243,7 +238,7 @@ function AdminAnswersPage() {
     try {
       const response = await fetch('/api/forms/answers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: csrfHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify(payload)
       });
@@ -275,9 +270,15 @@ function AdminAnswersPage() {
   const handleLogout = async () => {
     sessionStorage.setItem('justLoggedOut', 'true');
 
-    await fetch('/api/auth/logout', {
+    const response = await fetch('/api/auth/logout', {
+      method: 'DELETE',
+      headers: csrfHeaders(),
       credentials: 'include'
     });
+    if (response.ok) {
+      const data = await response.json().catch(() => null);
+      updateCsrfToken(data?.csrf_token);
+    }
 
     window.location.href = '/';
   };
@@ -405,10 +406,11 @@ function AdminAnswersPage() {
                   style={styles.selectInput}
                 >
                   <option value="">Все статусы</option>
-                  <option value="waiting">Ожидает проверки</option>
-                  <option value="approved">Принято</option>
-                  <option value="edits_required">Нужны правки</option>
-                  <option value="declined">Отклонено</option>
+                  {ANSWER_STATUS_OPTIONS.map((statusOption) => (
+                    <option key={statusOption.value} value={statusOption.value}>
+                      {statusOption.label}
+                    </option>
+                  ))}
                 </select>
               </label>
 
@@ -604,6 +606,9 @@ function AdminAnswersPage() {
             ) : (
               <div style={styles.answersList}>
                 {answers.map((answerItem) => {
+                  const statusConfig = getAnswerStatusConfig(answerItem.status);
+                  const commentsCount = getAnswerComments(answerItem).length;
+
                   return (
                     <button
                       key={answerItem.id}
@@ -624,12 +629,17 @@ function AdminAnswersPage() {
                           <p style={styles.answerUser}>{getUserMeta(answerItem.user, answerItem.user_id)}</p>
                         </div>
 
-                        <span style={{ ...styles.statusBadge, ...styles[`status_${answerItem.status}`] }}>
-                          {getStatusLabel(answerItem.status)}
+                        <span style={{ ...styles.statusBadge, backgroundColor: statusConfig.bg, color: statusConfig.color }}>
+                          {statusConfig.label}
                         </span>
                       </div>
 
-                      <p style={styles.answerMeta}>Создан: {formatDateTime(answerItem.created_at)}</p>
+                      <div style={styles.answerFooter}>
+                        <p style={styles.answerMeta}>Создан: {formatDateTime(answerItem.created_at)}</p>
+                        {commentsCount > 0 && (
+                          <span style={styles.commentCount}>Сообщений: {commentsCount}</span>
+                        )}
+                      </div>
                     </button>
                   );
                 })}
@@ -967,25 +977,25 @@ const styles = themeStyles({
     padding: '5px 10px',
     whiteSpace: 'nowrap'
   },
-  status_waiting: {
-    backgroundColor: '#f3f4f6',
-    color: '#374151'
-  },
-  status_approved: {
-    backgroundColor: '#d1fae5',
-    color: '#065f46'
-  },
-  status_edits_required: {
-    backgroundColor: '#fef3c7',
-    color: '#92400e'
-  },
-  status_declined: {
-    backgroundColor: '#fee2e2',
-    color: '#991b1b'
+  answerFooter: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '10px',
+    flexWrap: 'wrap'
   },
   answerMeta: {
     fontSize: '12px',
-    color: '#6b7280'
+    color: '#6b7280',
+    margin: 0
+  },
+  commentCount: {
+    fontSize: '12px',
+    color: '#4b5563',
+    backgroundColor: '#f3f4f6',
+    borderRadius: '999px',
+    padding: '3px 8px',
+    fontWeight: '600'
   },
   paginationRow: {
     display: 'flex',

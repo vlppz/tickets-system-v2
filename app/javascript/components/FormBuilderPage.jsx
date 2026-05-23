@@ -4,6 +4,7 @@ import { GripVertical, Plus, Trash2, Save, Type, Hash, ChevronDown, CheckSquare,
 import Navbar from './Navbar';
 import LoginPage from './LoginPage';
 import Footer from './Footer';
+import { csrfHeaders, updateCsrfToken } from '../lib/csrf';
 import { themeStyles, themeValue } from '../lib/theme';
 
 function parseBuilderContent(content) {
@@ -259,9 +260,15 @@ function FormBuilderPage() {
   const handleLogout = async () => {
     setTransitioning(true);
     sessionStorage.setItem('justLoggedOut', 'true');
-    await fetch('/api/auth/logout', {
+    const response = await fetch('/api/auth/logout', {
+      method: 'DELETE',
+      headers: csrfHeaders(),
       credentials: 'include'
     });
+    if (response.ok) {
+      const data = await response.json().catch(() => null);
+      updateCsrfToken(data?.csrf_token);
+    }
     setTimeout(() => {
       window.location.href = '/';
     }, 600);
@@ -538,7 +545,7 @@ function FormBuilderPage() {
 
       const response = await fetch(isEditMode ? '/api/forms/update' : '/api/forms/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: csrfHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload),
         credentials: 'include'
       });
