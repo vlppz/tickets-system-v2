@@ -503,8 +503,11 @@ function AdminAnswerDetailsPage() {
                           }}
                         >
                           <div style={styles.commentHeader}>
-                            <span style={styles.commentRole}>{getCommentRoleLabel(comment?.author_role)}</span>
-                            {comment?.author_name && <span style={styles.commentAuthor}>{comment.author_name}</span>}
+                            <span style={styles.commentRole}>
+                              {isAdminComment
+                                ? getCommentRoleLabel('admin')
+                                : (comment?.author_name || 'Пользователь')}
+                            </span>
                             <span style={styles.commentDate}>{formatTicketDate(comment?.created_at)}</span>
                           </div>
 
@@ -836,11 +839,9 @@ const styles = themeStyles({
     gap: '7px'
   },
   adminCommentItem: {
-    borderLeft: '4px solid #3b82f6',
     backgroundColor: '#eff6ff'
   },
   userCommentItem: {
-    borderLeft: '4px solid #10b981',
     backgroundColor: '#f9fafb'
   },
   commentHeader: {
