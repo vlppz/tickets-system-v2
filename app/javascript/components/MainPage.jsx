@@ -381,13 +381,6 @@ function MainPage() {
               </button>
             </div>
 
-            <div style={styles.commentsDialogStatusRow}>
-              <span style={{ ...styles.statusBadge, backgroundColor: activeCommentsStatus.bg, color: activeCommentsStatus.color }}>
-                {activeCommentsStatus.label}
-              </span>
-              <span style={styles.commentsDialogMeta}>Сообщений: {activeComments.length}</span>
-            </div>
-
             <div style={styles.commentsDialogBody}>
               {activeComments.length === 0 ? (
                 <div style={styles.commentsEmptyState}>
@@ -409,7 +402,11 @@ function MainPage() {
                         }}
                       >
                         <div style={styles.commentBubbleHeader}>
-                          <span style={styles.commentBubbleRole}>{getCommentRoleLabel(comment?.author_role)}</span>
+                          <span style={styles.commentBubbleRole}>
+                            {isAdminComment
+                              ? getCommentRoleLabel('admin')
+                              : (comment?.author_name || 'Пользователь')}
+                          </span>
                           <span style={styles.commentBubbleDate}>{formatTicketDate(comment?.created_at)}</span>
                         </div>
                         <StatusChangePills statusChange={comment?.status_change} />
@@ -812,11 +809,9 @@ const styles = themeStyles({
     gap: '8px'
   },
   commentBubbleAdmin: {
-    borderLeft: '4px solid #3b82f6',
     backgroundColor: '#eff6ff'
   },
   commentBubbleUser: {
-    borderLeft: '4px solid #10b981',
     backgroundColor: '#f9fafb'
   },
   commentBubbleHeader: {

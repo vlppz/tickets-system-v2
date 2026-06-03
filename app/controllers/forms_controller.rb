@@ -521,6 +521,7 @@ class FormsController < ApplicationController
   end
 
   def comment_author_name(user)
+    return nil if user.is_admin?
     full_name = [user.surname, user.name, user.second_name].select(&:present?).join(" ")
     full_name.presence || user.email || "User ##{user.id}"
   end
