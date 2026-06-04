@@ -13,6 +13,7 @@ services:
       RAILS_SERVE_STATIC_FILES: "1"
       RAILS_MAX_THREADS: "5"
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-docker-compose-development-secret-key-base-change-me}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       DATABASE_URL: postgres://postgres:postgres@db:5432/tickets_system_v2_production
       CACHE_DATABASE_URL: postgres://postgres:postgres@db:5432/tickets_system_v2_production_cache
       QUEUE_DATABASE_URL: postgres://postgres:postgres@db:5432/tickets_system_v2_production_queue
@@ -20,7 +21,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       SOLID_QUEUE_IN_PUMA: "1"
     ports:
-      - "3000:80"
+      - "${APP_PORT:-3000}:80"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost/up || exit 1"]
