@@ -15,6 +15,29 @@ function getSubmittedButtonLabel(status) {
   return 'Редактировать';
 }
 
+function getUserFullName(user) {
+  const fullName = [user?.surname, user?.name, user?.second_name]
+    .filter((part) => typeof part === 'string' && part.trim())
+    .map((part) => part.trim())
+    .join(' ');
+
+  return fullName || user?.email || '';
+}
+
+function getCommentAuthorLabel(comment, isAdminComment, answer, fallbackUser) {
+  if (isAdminComment) {
+    return getCommentRoleLabel('admin');
+  }
+
+  const authorName = typeof comment?.author_name === 'string' ? comment.author_name.trim() : '';
+  return authorName || getUserFullName(answer?.user) || getUserFullName(fallbackUser) || 'Пользователь';
+}
+
+function getCommentInitial(authorLabel, isAdminComment) {
+  if (isAdminComment) return 'А';
+  return authorLabel ? authorLabel.charAt(0).toUpperCase() : 'П';
+}
+
 function MainPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -31,6 +54,8 @@ function MainPage() {
   const [commentError, setCommentError] = useState('');
   const [commentsClosing, setCommentsClosing] = useState(false);
   const commentsCloseTimerRef = useRef(null);
+  const commentTextareaRef = useRef(null);
+  const commentsBodyRef = useRef(null);
 
   useEffect(() => {
     if (sessionStorage.getItem('justLoggedOut') === 'true') {
@@ -215,14 +240,6 @@ function MainPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={styles.loadingContainer}>
-        <div style={styles.loading}>Загрузка...</div>
-      </div>
-    );
-  }
-
   const submittedForms = forms.filter(f => myAnswers[f.id]);
   const availableForms = forms.filter(f => !myAnswers[f.id]);
   const activeCommentsAnswer = commentsFormId ? myAnswers[commentsFormId] : null;
@@ -230,7 +247,50 @@ function MainPage() {
     ? forms.find((form) => String(form.id) === String(commentsFormId))
     : null;
   const activeComments = getAnswerComments(activeCommentsAnswer);
-  const activeCommentsStatus = activeCommentsAnswer ? getAnswerStatusConfig(activeCommentsAnswer.status) : null;
+
+  useEffect(() => {
+    if (!commentsFormId || commentsClosing) return undefined;
+
+    const focusTimer = window.setTimeout(() => {
+      commentTextareaRef.current?.focus();
+
+      if (commentsBodyRef.current) {
+        commentsBodyRef.current.scrollTop = commentsBodyRef.current.scrollHeight;
+      }
+    }, 0);
+
+    return () => window.clearTimeout(focusTimer);
+  }, [commentsFormId, commentsClosing]);
+
+  useEffect(() => {
+    if (!commentsFormId || commentsClosing || !commentsBodyRef.current) return;
+
+    commentsBodyRef.current.scrollTo({
+      top: commentsBodyRef.current.scrollHeight,
+      behavior: 'smooth'
+    });
+  }, [commentsFormId, commentsClosing, activeComments.length]);
+
+  useEffect(() => {
+    if (!commentsFormId || commentsClosing) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        handleCloseComments();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [commentsFormId, commentsClosing, commentSubmitting]);
+
+  if (loading) {
+    return (
+      <div style={styles.loadingContainer}>
+        <div style={styles.loading}>Загрузка...</div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -362,17 +422,20 @@ function MainPage() {
             aria-label="Комментарии к заявке"
             onClick={(event) => event.stopPropagation()}
           >
-            <div style={styles.commentsDialogHeader}>
+            <div style={styles.commentsDialogHeader} className="comments-dialog-header">
               <div style={styles.commentsDialogTitleBlock}>
                 <div style={styles.commentsDialogTitleRow}>
-                  <MessageSquare size={18} style={styles.commentsDialogIcon} />
-                  <h2 style={styles.commentsDialogTitle}>Комментарии</h2>
+                  <span style={styles.commentsDialogIconWrap} aria-hidden="true">
+                    <MessageSquare size={18} style={styles.commentsDialogIcon} />
+                  </span>
+                  <h2 style={styles.commentsDialogTitle}>Обсуждение заявки</h2>
                 </div>
                 <p style={styles.commentsDialogSubtitle}>{activeCommentsForm.name}</p>
               </div>
               <button
                 type="button"
                 onClick={handleCloseComments}
+                disabled={commentSubmitting}
                 style={styles.closeDialogButton}
                 className="comments-close-button"
                 aria-label="Закрыть комментарии"
@@ -381,36 +444,54 @@ function MainPage() {
               </button>
             </div>
 
-            <div style={styles.commentsDialogBody}>
+            <div ref={commentsBodyRef} style={styles.commentsDialogBody} className="comments-dialog-body">
               {activeComments.length === 0 ? (
                 <div style={styles.commentsEmptyState}>
-                  <p style={styles.commentsEmptyTitle}>Обсуждение пока пустое</p>
-                  <p style={styles.commentsEmptySubtitle}>Напишите администратору уточнение по этой заявке.</p>
+                  <span style={styles.commentsEmptyIcon} aria-hidden="true">
+                    <MessageSquare size={20} />
+                  </span>
+                  <p style={styles.commentsEmptyTitle}>Пока нет сообщений</p>
+                  <p style={styles.commentsEmptySubtitle}>Первое сообщение появится здесь сразу после отправки.</p>
                 </div>
               ) : (
                 <div style={styles.commentsThread}>
                   {activeComments.map((comment, index) => {
                     const body = typeof comment?.body === 'string' ? comment.body.trim() : '';
                     const isAdminComment = comment?.author_role === 'admin';
+                    const authorLabel = getCommentAuthorLabel(comment, isAdminComment, activeCommentsAnswer, user);
 
                     return (
                       <div
                         key={comment?.id || index}
                         style={{
-                          ...styles.commentBubble,
-                          ...(isAdminComment ? styles.commentBubbleAdmin : styles.commentBubbleUser)
+                          ...styles.commentRow,
+                          ...(isAdminComment ? styles.commentRowAdmin : styles.commentRowUser)
                         }}
+                        className={isAdminComment ? 'comment-row comment-row-admin' : 'comment-row comment-row-user'}
                       >
-                        <div style={styles.commentBubbleHeader}>
-                          <span style={styles.commentBubbleRole}>
-                            {isAdminComment
-                              ? getCommentRoleLabel('admin')
-                              : (comment?.author_name || 'Пользователь')}
-                          </span>
-                          <span style={styles.commentBubbleDate}>{formatTicketDate(comment?.created_at)}</span>
+                        <span
+                          style={{
+                            ...styles.commentAvatar,
+                            ...(isAdminComment ? styles.commentAvatarAdmin : styles.commentAvatarUser)
+                          }}
+                          aria-hidden="true"
+                        >
+                          {getCommentInitial(authorLabel, isAdminComment)}
+                        </span>
+                        <div
+                          style={{
+                            ...styles.commentBubble,
+                            ...(isAdminComment ? styles.commentBubbleAdmin : styles.commentBubbleUser)
+                          }}
+                          className="comment-bubble"
+                        >
+                          <div style={styles.commentBubbleHeader}>
+                            <span style={styles.commentBubbleRole}>{authorLabel}</span>
+                            <span style={styles.commentBubbleDate}>{formatTicketDate(comment?.created_at)}</span>
+                          </div>
+                          <StatusChangePills statusChange={comment?.status_change} />
+                          {body && <p style={styles.commentBubbleBody}>{body}</p>}
                         </div>
-                        <StatusChangePills statusChange={comment?.status_change} />
-                        {body && <p style={styles.commentBubbleBody}>{body}</p>}
                       </div>
                     );
                   })}
@@ -418,18 +499,30 @@ function MainPage() {
               )}
             </div>
 
-            <form onSubmit={handleCommentReplySubmit} style={styles.commentReplyForm}>
+            <form onSubmit={handleCommentReplySubmit} style={styles.commentReplyForm} className="comment-reply-form">
+              <div style={styles.commentComposerTop}>
+                <label htmlFor="ticket-comment-reply" style={styles.commentReplyLabel}>Новое сообщение</label>
+                <span style={styles.commentLimit}>{commentReply.trim().length}/2000</span>
+              </div>
               <textarea
+                ref={commentTextareaRef}
+                id="ticket-comment-reply"
                 value={commentReply}
                 onChange={(event) => setCommentReply(event.target.value)}
                 placeholder="Напишите сообщение администратору"
                 rows={3}
                 maxLength={2000}
                 style={styles.commentReplyTextarea}
+                className="comment-reply-textarea"
+                aria-invalid={Boolean(commentError)}
+                aria-describedby={commentError ? 'ticket-comment-error' : undefined}
               />
-              <div style={styles.commentReplyFooter}>
-                {commentError && <span style={styles.commentError}>{commentError}</span>}
-                <span style={styles.commentLimit}>{commentReply.trim().length}/2000</span>
+              <div style={styles.commentReplyFooter} className="comment-reply-footer">
+                {commentError && (
+                  <span id="ticket-comment-error" role="alert" style={styles.commentError}>
+                    {commentError}
+                  </span>
+                )}
                 <button
                   type="submit"
                   disabled={commentSubmitting || !commentReply.trim()}
@@ -437,6 +530,7 @@ function MainPage() {
                     ...styles.sendCommentButton,
                     ...((commentSubmitting || !commentReply.trim()) ? styles.sendCommentButtonDisabled : {})
                   }}
+                  className="comments-send-button"
                   data-hover="blue"
                 >
                   <Send size={15} />
@@ -454,8 +548,8 @@ function MainPage() {
               }
               to {
                 opacity: 1;
-                backdrop-filter: blur(8px);
-                -webkit-backdrop-filter: blur(8px);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
               }
             }
 
@@ -473,8 +567,8 @@ function MainPage() {
             @keyframes commentsOverlayOut {
               from {
                 opacity: 1;
-                backdrop-filter: blur(8px);
-                -webkit-backdrop-filter: blur(8px);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
               }
               to {
                 opacity: 0;
@@ -514,6 +608,66 @@ function MainPage() {
               color: var(--color-danger) !important;
               border-color: var(--color-danger-border) !important;
               background-color: var(--color-danger-surface) !important;
+            }
+
+            .comments-close-button:focus-visible,
+            .comments-send-button:focus-visible {
+              box-shadow: 0 0 0 3px var(--color-brand-ring) !important;
+            }
+
+            .comment-reply-textarea::placeholder {
+              color: var(--color-text-dim);
+            }
+
+            .comments-dialog-body {
+              scrollbar-gutter: stable;
+            }
+
+            @media (max-width: 640px) {
+              .comments-overlay {
+                align-items: flex-end !important;
+                padding: 0 !important;
+              }
+
+              .comments-dialog {
+                width: 100% !important;
+                height: min(94vh, 820px) !important;
+                max-height: calc(100vh - 20px) !important;
+                border-radius: 16px 16px 0 0 !important;
+                border-inline: none !important;
+                border-bottom: none !important;
+              }
+
+              .comments-dialog-header {
+                padding: 14px 14px 12px !important;
+              }
+
+              .comments-dialog-body {
+                padding: 12px 14px 14px !important;
+              }
+
+              .comment-reply-form {
+                padding: 12px 14px 14px !important;
+              }
+
+              .comment-row {
+                gap: 8px !important;
+              }
+
+              .comment-bubble {
+                max-width: calc(100% - 40px) !important;
+              }
+            }
+
+            @media (max-width: 420px) {
+              .comment-reply-footer {
+                align-items: stretch !important;
+              }
+
+              .comments-send-button {
+                width: 100% !important;
+                justify-content: center !important;
+              }
             }
 
             @media (prefers-reduced-motion: reduce) {
@@ -688,19 +842,19 @@ const styles = themeStyles({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '24px',
-    backgroundColor: 'rgba(17, 24, 39, 0.46)',
-    backdropFilter: 'blur(8px)',
-    WebkitBackdropFilter: 'blur(8px)',
+    padding: '16px',
+    backgroundColor: 'var(--overlay)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   },
   commentsDialog: {
-    width: 'min(720px, 100%)',
-    maxHeight: 'calc(100vh - 48px)',
-    borderRadius: '18px',
-    backgroundColor: '#ffffff',
-    border: '1px solid #e5e7eb',
-    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+    width: 'min(920px, 100%)',
+    height: 'min(760px, calc(100vh - 32px))',
+    borderRadius: '12px',
+    backgroundColor: 'var(--color-surface)',
+    border: '1px solid var(--color-border)',
+    boxShadow: '0 24px 80px var(--shadow-strong)',
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
@@ -710,14 +864,15 @@ const styles = themeStyles({
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: '16px',
-    padding: '20px 20px 14px',
-    borderBottom: '1px solid #e5e7eb'
+    gap: '12px',
+    padding: '16px 18px 14px',
+    borderBottom: '1px solid var(--color-border)',
+    backgroundColor: 'var(--color-surface)'
   },
   commentsDialogTitleBlock: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '5px',
+    gap: '4px',
     minWidth: 0
   },
   commentsDialogTitleRow: {
@@ -725,173 +880,246 @@ const styles = themeStyles({
     alignItems: 'center',
     gap: '8px'
   },
+  commentsDialogIconWrap: {
+    width: '30px',
+    height: '30px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '8px',
+    border: '1px solid var(--color-border)',
+    backgroundColor: 'var(--color-brand-surface)',
+    color: 'var(--color-primary)',
+    flexShrink: 0
+  },
   commentsDialogIcon: {
-    color: '#3b82f6',
+    color: 'currentColor',
     flexShrink: 0
   },
   commentsDialogTitle: {
     margin: 0,
-    fontSize: '20px',
+    fontSize: '18px',
     fontWeight: '700',
-    color: '#1f2937'
+    color: 'var(--color-text-strong)',
+    lineHeight: 1.2
   },
   commentsDialogSubtitle: {
     margin: 0,
-    color: '#6b7280',
-    fontSize: '14px',
+    color: 'var(--color-text-muted)',
+    fontSize: '13px',
+    lineHeight: 1.35,
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis'
   },
   closeDialogButton: {
-    width: '34px',
-    height: '34px',
+    width: '30px',
+    height: '30px',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    border: '1px solid #d1d5db',
-    borderRadius: '10px',
-    backgroundColor: '#ffffff',
-    color: '#4b5563',
+    border: '1px solid var(--color-border)',
+    borderRadius: '8px',
+    backgroundColor: 'var(--color-surface)',
+    color: 'var(--color-text-secondary)',
     cursor: 'pointer',
     flexShrink: 0,
-    transition: 'background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease'
-  },
-  commentsDialogStatusRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: '12px',
-    flexWrap: 'wrap',
-    padding: '14px 20px',
-    backgroundColor: '#f9fafb',
-    borderBottom: '1px solid #e5e7eb'
-  },
-  commentsDialogMeta: {
-    fontSize: '13px',
-    color: '#6b7280',
-    fontWeight: '600'
+    transition: 'background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease'
   },
   commentsDialogBody: {
+    flex: 1,
     overflowY: 'auto',
-    padding: '18px 20px',
-    backgroundColor: '#ffffff'
+    padding: '14px 18px 16px',
+    backgroundColor: 'var(--color-surface)'
   },
   commentsEmptyState: {
-    border: '1px dashed #d1d5db',
-    borderRadius: '12px',
-    padding: '24px 16px',
+    minHeight: '170px',
+    border: '1px dashed var(--color-border-strong)',
+    borderRadius: '8px',
+    padding: '22px 16px',
     textAlign: 'center',
-    backgroundColor: '#f9fafb'
+    backgroundColor: 'var(--color-surface-muted)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'column',
+    gap: '10px'
+  },
+  commentsEmptyIcon: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '8px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'var(--color-brand-surface)',
+    color: 'var(--color-primary)',
+    border: '1px solid var(--color-border)'
   },
   commentsEmptyTitle: {
-    margin: '0 0 6px',
-    color: '#1f2937',
-    fontSize: '16px',
+    margin: 0,
+    color: 'var(--color-text-strong)',
+    fontSize: '15px',
     fontWeight: '700'
   },
   commentsEmptySubtitle: {
     margin: 0,
-    color: '#6b7280',
-    fontSize: '14px'
+    color: 'var(--color-text-muted)',
+    fontSize: '13px',
+    lineHeight: 1.45,
+    maxWidth: '320px'
   },
   commentsThread: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px'
+    gap: '10px'
   },
-  commentBubble: {
-    border: '1px solid #e5e7eb',
-    borderRadius: '14px',
-    padding: '12px 14px',
+  commentRow: {
+    width: '100%',
     display: 'flex',
-    flexDirection: 'column',
+    alignItems: 'flex-start',
     gap: '8px'
   },
+  commentRowAdmin: {
+    justifyContent: 'flex-start'
+  },
+  commentRowUser: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'flex-start'
+  },
+  commentAvatar: {
+    width: '28px',
+    height: '28px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginTop: '2px',
+    borderRadius: '999px',
+    border: '1px solid var(--color-border)',
+    fontSize: '11px',
+    fontWeight: '800',
+    lineHeight: 1
+  },
+  commentAvatarAdmin: {
+    backgroundColor: 'var(--color-brand-surface)',
+    color: 'var(--color-primary)'
+  },
+  commentAvatarUser: {
+    backgroundColor: 'var(--color-surface-subtle)',
+    color: 'var(--color-text-secondary)'
+  },
+  commentBubble: {
+    maxWidth: 'min(680px, calc(100% - 36px))',
+    border: '1px solid var(--color-border)',
+    borderRadius: '8px',
+    padding: '10px 12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    boxShadow: '0 1px 2px var(--shadow-soft)'
+  },
   commentBubbleAdmin: {
-    backgroundColor: '#eff6ff'
+    backgroundColor: 'var(--color-brand-surface)'
   },
   commentBubbleUser: {
-    backgroundColor: '#f9fafb'
+    backgroundColor: 'var(--color-surface-muted)'
   },
   commentBubbleHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: '10px',
+    gap: '8px',
     flexWrap: 'wrap'
   },
   commentBubbleRole: {
-    fontSize: '13px',
-    color: '#1f2937',
+    fontSize: '12px',
+    color: 'var(--color-text-strong)',
     fontWeight: '700'
   },
   commentBubbleDate: {
-    fontSize: '12px',
-    color: '#6b7280'
+    fontSize: '11px',
+    color: 'var(--color-text-muted)'
   },
   commentBubbleBody: {
     margin: 0,
-    fontSize: '14px',
-    color: '#1f2937',
+    fontSize: '13px',
+    color: 'var(--color-text-primary)',
     lineHeight: 1.5,
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word'
   },
   commentReplyForm: {
-    padding: '16px 20px 20px',
-    borderTop: '1px solid #e5e7eb',
-    backgroundColor: '#f9fafb',
+    padding: '12px 18px 16px',
+    borderTop: '1px solid var(--color-border)',
+    backgroundColor: 'var(--color-surface-muted)',
     display: 'flex',
     flexDirection: 'column',
-    gap: '10px'
+    gap: '8px'
+  },
+  commentComposerTop: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px'
+  },
+  commentReplyLabel: {
+    color: 'var(--color-text-strong)',
+    fontSize: '12px',
+    fontWeight: '700'
   },
   commentReplyTextarea: {
     width: '100%',
-    padding: '11px 12px',
-    border: '1px solid #d1d5db',
-    borderRadius: '10px',
-    backgroundColor: '#ffffff',
-    color: '#1f2937',
-    fontSize: '14px',
+    minHeight: '76px',
+    padding: '10px 11px',
+    border: '1px solid var(--color-border-strong)',
+    borderRadius: '8px',
+    backgroundColor: 'var(--color-surface)',
+    color: 'var(--color-text-primary)',
+    fontSize: '13px',
     fontFamily: 'inherit',
     resize: 'vertical',
-    lineHeight: 1.45
+    lineHeight: 1.45,
+    transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
   },
   commentReplyFooter: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: '10px',
+    gap: '8px',
     flexWrap: 'wrap'
   },
   commentError: {
     marginRight: 'auto',
-    fontSize: '13px',
-    color: '#dc2626',
+    fontSize: '12px',
+    color: 'var(--color-danger)',
     fontWeight: '600'
   },
   commentLimit: {
-    color: '#6b7280',
-    fontSize: '12px'
+    color: 'var(--color-text-muted)',
+    fontSize: '12px',
+    fontWeight: '600',
+    whiteSpace: 'nowrap'
   },
   sendCommentButton: {
     display: 'inline-flex',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: '7px',
-    padding: '10px 14px',
+    minHeight: '36px',
+    padding: '8px 13px',
     border: 'none',
-    borderRadius: '10px',
+    borderRadius: '8px',
     backgroundColor: 'var(--color-primary)',
     color: 'var(--color-on-primary)',
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: '700',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
-    transition: 'background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease'
+    transition: 'background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease'
   },
   sendCommentButtonDisabled: {
-    backgroundColor: '#9ca3af',
+    backgroundColor: 'var(--color-text-dim)',
     cursor: 'not-allowed'
   }
 });
