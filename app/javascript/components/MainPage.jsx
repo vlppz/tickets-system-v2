@@ -429,8 +429,8 @@ function MainPage() {
                     <MessageSquare size={18} style={styles.commentsDialogIcon} />
                   </span>
                   <h2 style={styles.commentsDialogTitle}>Обсуждение заявки</h2>
+                  <span style={styles.commentsDialogSubtitle}>{activeCommentsForm.name}</span>
                 </div>
-                <p style={styles.commentsDialogSubtitle}>{activeCommentsForm.name}</p>
               </div>
               <button
                 type="button"
@@ -873,12 +873,15 @@ const styles = themeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: '4px',
-    minWidth: 0
+    minWidth: 0,
+    flex: 1
   },
   commentsDialogTitleRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px'
+    gap: '10px',
+    minWidth: 0,
+    width: '100%'
   },
   commentsDialogIconWrap: {
     width: '30px',
@@ -901,7 +904,9 @@ const styles = themeStyles({
     fontSize: '18px',
     fontWeight: '700',
     color: 'var(--color-text-strong)',
-    lineHeight: 1.2
+    lineHeight: 1.2,
+    whiteSpace: 'nowrap',
+    flexShrink: 0
   },
   commentsDialogSubtitle: {
     margin: 0,
@@ -910,7 +915,10 @@ const styles = themeStyles({
     lineHeight: 1.35,
     whiteSpace: 'nowrap',
     overflow: 'hidden',
-    textOverflow: 'ellipsis'
+    textOverflow: 'ellipsis',
+    minWidth: 0,
+    paddingLeft: '10px',
+    borderLeft: '1px solid var(--color-border)'
   },
   closeDialogButton: {
     width: '30px',

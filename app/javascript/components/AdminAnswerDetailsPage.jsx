@@ -87,6 +87,27 @@ function getUserEmail(user) {
   return user?.email || null;
 }
 
+function getUserFullName(user) {
+  return [user?.surname, user?.name, user?.second_name]
+    .filter((part) => typeof part === 'string' && part.trim())
+    .map((part) => part.trim())
+    .join(' ');
+}
+
+function getCommentAuthorLabel(comment, isAdminComment, answer) {
+  if (isAdminComment) {
+    return getCommentRoleLabel('admin');
+  }
+
+  const authorName = typeof comment?.author_name === 'string' ? comment.author_name.trim() : '';
+  return authorName || getUserFullName(answer?.user) || answer?.user?.email || 'Пользователь';
+}
+
+function getCommentInitial(authorLabel, isAdminComment) {
+  if (isAdminComment) return 'А';
+  return authorLabel ? authorLabel.charAt(0).toUpperCase() : 'П';
+}
+
 function getStatusConfig(status) {
   const base = getAnswerStatusConfig(status);
   let icon = Clock;
@@ -105,18 +126,6 @@ function getStatusConfig(status) {
     badgeStyle: { backgroundColor: base.bg, color: base.color }
   };
 }
-
-function getFieldTypeLabel(type) {
-  const map = {
-    text: 'Текст',
-    textarea: 'Многострочный',
-    number: 'Число',
-    checkbox: 'Флажок',
-    select: 'Выбор'
-  };
-  return map[type] || type;
-}
-
 
 function AdminAnswerDetailsPage() {
   const [user, setUser] = useState(null);
@@ -346,10 +355,9 @@ function AdminAnswerDetailsPage() {
   const StatusIcon = statusConfig?.icon;
   const comments = getAnswerComments(answer);
   const hasReviewChanges = Boolean(answer) && (reviewStatus !== answer.status || reviewComment.trim().length > 0);
-  const userFullName = answer
-    ? [answer.user?.surname, answer.user?.name, answer.user?.second_name].filter(Boolean).join(' ').trim() || null
-    : null;
+  const userFullName = answer ? getUserFullName(answer.user) || null : null;
   const userEmail = answer ? getUserEmail(answer.user) : null;
+  const filledFieldsCount = answerEntries.filter(([, value]) => formatAnswerValue(value) !== '—').length;
 
   return (
     <div style={styles.container}>
@@ -378,20 +386,20 @@ function AdminAnswerDetailsPage() {
             </div>
           ) : (
             <>
-              <div style={styles.topRow}>
+              <section style={styles.pageHeader} className="answer-page-header">
                 <div style={styles.titleBlock}>
                   <div style={styles.titleLine}>
                     <FileText size={20} style={styles.titleIcon} />
                     <h1 style={styles.pageTitle}>{form?.name || `Форма #${answer.form_id}`}</h1>
                   </div>
-                  <p style={styles.answerIdLabel}>Ответ #{answerId}</p>
+                  <p style={styles.answerIdLabel}>Ответ #{answerId} · форма #{answer.form_id}</p>
                 </div>
 
                 <span style={{ ...styles.statusBadge, ...statusConfig?.badgeStyle }}>
                   {StatusIcon && <StatusIcon size={13} />}
                   {statusConfig?.label}
                 </span>
-              </div>
+              </section>
 
               <div style={styles.metaCards}>
                 <div style={styles.metaCard}>
@@ -420,148 +428,206 @@ function AdminAnswerDetailsPage() {
                     <span style={styles.metaCardValue}>{formatDateTime(answer.updated_at)}</span>
                   </div>
                 </div>
-              </div>
 
-              <div style={styles.reviewCard}>
-                <div style={styles.reviewHeader}>
-                  <div>
-                    <h2 style={styles.reviewTitle}>Решение по заявке</h2>
-                    <p style={styles.reviewSubtitle}>Измените статус и оставьте комментарий для пользователя.</p>
+                <div style={styles.metaCard}>
+                  <MessageSquare size={15} style={styles.metaIcon} />
+                  <div style={styles.metaCardBody}>
+                    <span style={styles.metaCardLabel}>Обсуждение</span>
+                    <span style={styles.metaCardValue}>{comments.length}</span>
                   </div>
                 </div>
-
-                <form onSubmit={handleReviewSubmit} style={styles.reviewForm}>
-                  <div style={styles.reviewControls}>
-                    <label style={styles.reviewFieldLabel}>
-                      Статус
-                      <select
-                        value={reviewStatus}
-                        onChange={(event) => setReviewStatus(event.target.value)}
-                        style={styles.reviewSelect}
-                      >
-                        {ANSWER_STATUS_OPTIONS.map((statusOption) => (
-                          <option key={statusOption.value} value={statusOption.value}>
-                            {statusOption.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label style={styles.reviewFieldLabel}>
-                      Комментарий
-                      <textarea
-                        value={reviewComment}
-                        onChange={(event) => setReviewComment(event.target.value)}
-                        placeholder="Например: приложите недостающие данные"
-                        rows={4}
-                        maxLength={2000}
-                        style={styles.reviewTextarea}
-                      />
-                    </label>
-                  </div>
-
-                  {reviewError && <p style={styles.reviewError}>{reviewError}</p>}
-
-                  <div style={styles.reviewActions}>
-                    <button
-                      type="submit"
-                      disabled={reviewSaving || !hasReviewChanges}
-                      style={{
-                        ...styles.saveReviewButton,
-                        ...((reviewSaving || !hasReviewChanges) ? styles.saveReviewButtonDisabled : {})
-                      }}
-                      data-hover="blue"
-                    >
-                      <Save size={15} />
-                      <span>{reviewSaving ? 'Сохранение...' : 'Сохранить решение'}</span>
-                    </button>
-                    <span style={styles.commentLimit}>{reviewComment.trim().length}/2000</span>
-                  </div>
-                </form>
               </div>
 
-              <div style={styles.commentsCard}>
-                <div style={styles.commentsHeader}>
-                  <MessageSquare size={16} style={styles.commentsIcon} />
-                  <h2 style={styles.commentsTitle}>Обсуждение</h2>
-                </div>
-
-                {comments.length === 0 ? (
-                  <p style={styles.emptyText}>Комментариев пока нет</p>
-                ) : (
-                  <div style={styles.commentsList}>
-                    {comments.map((comment, index) => {
-                      const body = typeof comment?.body === 'string' ? comment.body.trim() : '';
-                      const isAdminComment = comment?.author_role === 'admin';
-
-                      return (
-                        <div
-                          key={comment?.id || index}
-                          style={{
-                            ...styles.commentItem,
-                            ...(isAdminComment ? styles.adminCommentItem : styles.userCommentItem)
-                          }}
-                        >
-                          <div style={styles.commentHeader}>
-                            <span style={styles.commentRole}>
-                              {isAdminComment
-                                ? getCommentRoleLabel('admin')
-                                : (comment?.author_name || 'Пользователь')}
-                            </span>
-                            <span style={styles.commentDate}>{formatTicketDate(comment?.created_at)}</span>
-                          </div>
-
-                          <StatusChangePills statusChange={comment?.status_change} />
-
-                          {body && <p style={styles.commentBody}>{body}</p>}
-                        </div>
-                      );
-                    })}
+              <div style={styles.detailsGrid} className="answer-details-grid">
+                <section style={styles.fieldsCard}>
+                  <div style={styles.sectionHeader}>
+                    <div>
+                      <h2 style={styles.fieldsTitle}>Данные ответа</h2>
+                      <p style={styles.sectionSubtitle}>
+                        Заполнено {filledFieldsCount} из {answerEntries.length}
+                      </p>
+                    </div>
                   </div>
-                )}
-              </div>
 
-              <div style={styles.fieldsCard}>
-                <h2 style={styles.fieldsTitle}>Данные ответа</h2>
+                  {answerEntries.length === 0 ? (
+                    <p style={styles.emptyText}>Нет данных ответа</p>
+                  ) : (
+                    <div style={styles.fieldsList}>
+                      {answerEntries.map(([fieldId, value], index) => {
+                        const fieldDef = fieldMap[fieldId];
+                        const label = fieldDef?.label || fieldId;
+                        const isBoolean = typeof value === 'boolean';
+                        const isLast = index === answerEntries.length - 1;
 
-                {answerEntries.length === 0 ? (
-                  <p style={styles.emptyText}>Нет данных ответа</p>
-                ) : (
-                  <div style={styles.fieldsList}>
-                    {answerEntries.map(([fieldId, value], index) => {
-                      const fieldDef = fieldMap[fieldId];
-                      const label = fieldDef?.label || fieldId;
-                      const typeLabel = fieldDef ? getFieldTypeLabel(fieldDef.type) : null;
-                      const isBoolean = typeof value === 'boolean';
-                      const isLast = index === answerEntries.length - 1;
-
-                      return (
-                        <div key={fieldId} style={{ ...styles.fieldItem, ...(isLast ? { borderBottom: 'none' } : {}) }}>
-                          <div style={styles.fieldMeta}>
-                            <span style={styles.fieldLabel}>{label}</span>
-                          </div>
-                          <div style={isBoolean ? styles.fieldValueBool : styles.fieldValue}>
-                            {isBoolean ? (
-                              value ? (
-                                <span style={styles.boolYes}>
-                                  <CheckCircle size={14} />
-                                  Да
-                                </span>
+                        return (
+                          <div
+                            key={fieldId}
+                            style={{ ...styles.fieldItem, ...(isLast ? { borderBottom: 'none' } : {}) }}
+                            className="answer-field-item"
+                          >
+                            <div style={styles.fieldMeta}>
+                              <span style={styles.fieldLabel}>{label}</span>
+                              <div style={styles.fieldBadges}>
+                                {fieldDef?.required && <span style={styles.requiredBadge}>Обязательно</span>}
+                              </div>
+                              {fieldDef?.description && (
+                                <span style={styles.fieldDescription}>{fieldDef.description}</span>
+                              )}
+                            </div>
+                            <div style={isBoolean ? styles.fieldValueBool : styles.fieldValue}>
+                              {isBoolean ? (
+                                value ? (
+                                  <span style={styles.boolYes}>
+                                    <CheckCircle size={14} />
+                                    Да
+                                  </span>
+                                ) : (
+                                  <span style={styles.boolNo}>
+                                    <XCircle size={14} />
+                                    Нет
+                                  </span>
+                                )
                               ) : (
-                                <span style={styles.boolNo}>
-                                  <XCircle size={14} />
-                                  Нет
-                                </span>
-                              )
-                            ) : (
-                              formatAnswerValue(value)
-                            )}
+                                formatAnswerValue(value)
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+
+                <aside style={styles.sideColumn} className="answer-side-column">
+                  <section style={styles.reviewCard}>
+                    <div style={styles.reviewHeader}>
+                      <div>
+                        <h2 style={styles.reviewTitle}>Решение</h2>
+                        <p style={styles.reviewSubtitle}>Выберите статус и оставьте комментарий.</p>
+                      </div>
+                    </div>
+
+                    <form onSubmit={handleReviewSubmit} style={styles.reviewForm}>
+                      <div style={styles.reviewControls}>
+                        <div style={styles.reviewFieldLabel}>
+                          <span>Статус</span>
+                          <div style={styles.statusOptionGrid} role="radiogroup" aria-label="Статус ответа">
+                            {ANSWER_STATUS_OPTIONS.map((statusOption) => {
+                              const optionConfig = getStatusConfig(statusOption.value);
+                              const OptionIcon = optionConfig.icon;
+                              const selected = reviewStatus === statusOption.value;
+
+                              return (
+                                <button
+                                  key={statusOption.value}
+                                  type="button"
+                                  className="status-option-button"
+                                  role="radio"
+                                  aria-checked={selected}
+                                  onClick={() => setReviewStatus(statusOption.value)}
+                                  style={{
+                                    ...styles.statusOptionButton,
+                                    ...(selected ? styles.statusOptionButtonSelected : {}),
+                                    borderColor: selected ? optionConfig.color : 'var(--color-border)',
+                                    backgroundColor: selected ? optionConfig.bg : 'var(--color-surface)',
+                                    color: selected ? optionConfig.color : 'var(--color-text-secondary)'
+                                  }}
+                                >
+                                  <OptionIcon size={14} />
+                                  <span>{statusOption.label}</span>
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+
+                        <label style={styles.reviewFieldLabel}>
+                          Комментарий
+                          <textarea
+                            value={reviewComment}
+                            onChange={(event) => setReviewComment(event.target.value)}
+                            placeholder="Например: приложите недостающие данные"
+                            rows={4}
+                            maxLength={2000}
+                            style={styles.reviewTextarea}
+                          />
+                        </label>
+                      </div>
+
+                      {reviewError && <p style={styles.reviewError}>{reviewError}</p>}
+
+                      <div style={styles.reviewActions}>
+                        <button
+                          type="submit"
+                          disabled={reviewSaving || !hasReviewChanges}
+                          style={{
+                            ...styles.saveReviewButton,
+                            ...((reviewSaving || !hasReviewChanges) ? styles.saveReviewButtonDisabled : {})
+                          }}
+                          data-hover="blue"
+                        >
+                          <Save size={15} />
+                          <span>{reviewSaving ? 'Сохранение...' : 'Сохранить'}</span>
+                        </button>
+                        <span style={styles.commentLimit}>{reviewComment.trim().length}/2000</span>
+                      </div>
+                    </form>
+                  </section>
+
+                  <section style={styles.commentsCard}>
+                    <div style={styles.commentsHeader}>
+                      <div style={styles.commentsTitleBlock}>
+                        <MessageSquare size={16} style={styles.commentsIcon} />
+                        <h2 style={styles.commentsTitle}>Обсуждение</h2>
+                      </div>
+                      <span style={styles.commentsCount}>{comments.length}</span>
+                    </div>
+
+                    {comments.length === 0 ? (
+                      <div style={styles.commentsEmptyState}>
+                        <MessageSquare size={18} style={styles.commentsEmptyIcon} />
+                        <p style={styles.emptyText}>Комментариев пока нет</p>
+                      </div>
+                    ) : (
+                      <div style={styles.commentsList}>
+                        {comments.map((comment, index) => {
+                          const body = typeof comment?.body === 'string' ? comment.body.trim() : '';
+                          const isAdminComment = comment?.author_role === 'admin';
+                          const authorLabel = getCommentAuthorLabel(comment, isAdminComment, answer);
+
+                          return (
+                            <div key={comment?.id || index} style={styles.commentRow}>
+                              <span
+                                style={{
+                                  ...styles.commentAvatar,
+                                  ...(isAdminComment ? styles.adminCommentAvatar : styles.userCommentAvatar)
+                                }}
+                                aria-hidden="true"
+                              >
+                                {getCommentInitial(authorLabel, isAdminComment)}
+                              </span>
+                              <div
+                                style={{
+                                  ...styles.commentItem,
+                                  ...(isAdminComment ? styles.adminCommentItem : styles.userCommentItem)
+                                }}
+                              >
+                                <div style={styles.commentHeader}>
+                                  <span style={styles.commentRole}>{authorLabel}</span>
+                                  <span style={styles.commentDate}>{formatTicketDate(comment?.created_at)}</span>
+                                </div>
+
+                                <StatusChangePills statusChange={comment?.status_change} />
+
+                                {body && <p style={styles.commentBody}>{body}</p>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                </aside>
               </div>
             </>
           )}
@@ -574,6 +640,41 @@ function AdminAnswerDetailsPage() {
         .answer-details-content, .answer-details-content * {
           user-select: text !important;
           -webkit-user-select: text !important;
+        }
+
+        .status-option-button:hover {
+          border-color: var(--color-brand) !important;
+          box-shadow: 0 0 0 3px var(--color-brand-ring) !important;
+        }
+
+        .status-option-button:focus-visible,
+        .answer-details-content button:focus-visible {
+          box-shadow: 0 0 0 3px var(--color-brand-ring) !important;
+        }
+
+        @media (max-width: 1080px) {
+          .answer-details-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .answer-side-column {
+            position: static !important;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .answer-details-content {
+            padding: 0 16px !important;
+          }
+
+          .answer-page-header {
+            padding: 16px !important;
+          }
+
+          .answer-field-item {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+          }
         }
       `}</style>
     </div>
@@ -590,10 +691,10 @@ const styles = themeStyles({
   },
   main: {
     flex: 1,
-    padding: '32px 0'
+    padding: '28px 0 36px'
   },
   content: {
-    maxWidth: '860px',
+    maxWidth: '1260px',
     margin: '0 auto',
     width: '100%',
     padding: '0 24px',
@@ -615,17 +716,23 @@ const styles = themeStyles({
     cursor: 'pointer',
     alignSelf: 'flex-start'
   },
-  topRow: {
+  pageHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: '16px',
-    flexWrap: 'wrap'
+    gap: '18px',
+    flexWrap: 'wrap',
+    padding: '20px',
+    border: '1px solid #e5e7eb',
+    borderRadius: '12px',
+    backgroundColor: '#ffffff',
+    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
   },
   titleBlock: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '4px'
+    gap: '6px',
+    minWidth: 0
   },
   titleLine: {
     display: 'flex',
@@ -637,15 +744,17 @@ const styles = themeStyles({
     flexShrink: 0
   },
   pageTitle: {
-    fontSize: '26px',
+    fontSize: '24px',
     fontWeight: '700',
     color: '#1f2937',
-    margin: 0
+    margin: 0,
+    lineHeight: 1.2
   },
   answerIdLabel: {
     fontSize: '13px',
     color: '#9ca3af',
-    paddingLeft: '30px'
+    paddingLeft: '30px',
+    margin: 0
   },
   statusBadge: {
     display: 'inline-flex',
@@ -660,16 +769,16 @@ const styles = themeStyles({
   },
   metaCards: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
     gap: '12px'
   },
   metaCard: {
     display: 'flex',
     gap: '12px',
     alignItems: 'center',
-    padding: '14px 16px',
+    padding: '13px 14px',
     border: '1px solid #e5e7eb',
-    borderRadius: '10px',
+    borderRadius: '8px',
     backgroundColor: '#ffffff'
   },
   metaIcon: {
@@ -701,14 +810,29 @@ const styles = themeStyles({
     color: '#6b7280',
     userSelect: 'text'
   },
-  reviewCard: {
-    border: '1px solid #dbeafe',
-    borderRadius: '12px',
-    backgroundColor: '#eff6ff',
-    padding: '18px',
+  detailsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) 380px',
+    alignItems: 'start',
+    gap: '18px'
+  },
+  sideColumn: {
+    position: 'sticky',
+    top: '18px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '14px'
+    gap: '16px',
+    minWidth: 0
+  },
+  reviewCard: {
+    border: '1px solid #e5e7eb',
+    borderRadius: '12px',
+    backgroundColor: '#ffffff',
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
   },
   reviewHeader: {
     display: 'flex',
@@ -733,10 +857,9 @@ const styles = themeStyles({
     gap: '12px'
   },
   reviewControls: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-    gap: '12px',
-    alignItems: 'start'
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px'
   },
   reviewFieldLabel: {
     display: 'flex',
@@ -746,20 +869,36 @@ const styles = themeStyles({
     fontWeight: '600',
     color: '#374151'
   },
-  reviewSelect: {
-    width: '100%',
-    padding: '10px 12px',
-    border: '1px solid #bfdbfe',
+  statusOptionGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '8px'
+  },
+  statusOptionButton: {
+    minHeight: '38px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: '7px',
+    padding: '8px 10px',
+    border: '1px solid var(--color-border)',
     borderRadius: '8px',
-    backgroundColor: '#ffffff',
-    color: '#1f2937',
-    fontSize: '14px'
+    backgroundColor: 'var(--color-surface)',
+    color: 'var(--color-text-secondary)',
+    fontSize: '12px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    textAlign: 'left',
+    transition: 'border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease'
+  },
+  statusOptionButtonSelected: {
+    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
   },
   reviewTextarea: {
     width: '100%',
-    minHeight: '96px',
+    minHeight: '118px',
     padding: '10px 12px',
-    border: '1px solid #bfdbfe',
+    border: '1px solid #d1d5db',
     borderRadius: '8px',
     backgroundColor: '#ffffff',
     color: '#1f2937',
@@ -784,8 +923,10 @@ const styles = themeStyles({
   saveReviewButton: {
     display: 'inline-flex',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: '8px',
-    padding: '10px 14px',
+    minHeight: '38px',
+    padding: '9px 13px',
     borderRadius: '8px',
     border: 'none',
     backgroundColor: 'var(--color-primary)',
@@ -806,12 +947,19 @@ const styles = themeStyles({
     border: '1px solid #e5e7eb',
     borderRadius: '12px',
     backgroundColor: '#ffffff',
-    padding: '18px',
+    padding: '16px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '14px'
+    gap: '14px',
+    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
   },
   commentsHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '10px'
+  },
+  commentsTitleBlock: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px'
@@ -825,18 +973,76 @@ const styles = themeStyles({
     color: '#374151',
     margin: 0
   },
+  commentsCount: {
+    minWidth: '24px',
+    height: '24px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 7px',
+    borderRadius: '999px',
+    backgroundColor: '#f3f4f6',
+    color: '#374151',
+    fontSize: '12px',
+    fontWeight: '700'
+  },
   commentsList: {
     display: 'flex',
     flexDirection: 'column',
     gap: '10px'
   },
-  commentItem: {
+  commentsEmptyState: {
+    minHeight: '92px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'column',
+    gap: '8px',
+    border: '1px dashed #d1d5db',
+    borderRadius: '8px',
+    backgroundColor: '#f9fafb',
+    padding: '16px'
+  },
+  commentsEmptyIcon: {
+    color: '#9ca3af'
+  },
+  commentRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '8px'
+  },
+  commentAvatar: {
+    width: '28px',
+    height: '28px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginTop: '2px',
+    borderRadius: '999px',
     border: '1px solid #e5e7eb',
-    borderRadius: '10px',
-    padding: '12px',
+    fontSize: '11px',
+    fontWeight: '800',
+    lineHeight: 1
+  },
+  adminCommentAvatar: {
+    backgroundColor: '#eff6ff',
+    color: '#3b82f6'
+  },
+  userCommentAvatar: {
+    backgroundColor: '#f3f4f6',
+    color: '#374151'
+  },
+  commentItem: {
+    minWidth: 0,
+    flex: 1,
+    border: '1px solid #e5e7eb',
+    borderRadius: '8px',
+    padding: '10px 11px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '7px'
+    gap: '7px',
+    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
   },
   adminCommentItem: {
     backgroundColor: '#eff6ff'
@@ -855,29 +1061,15 @@ const styles = themeStyles({
     fontWeight: '700',
     color: '#1f2937'
   },
-  commentAuthor: {
-    fontSize: '12px',
-    color: '#4b5563'
-  },
   commentDate: {
-    fontSize: '12px',
+    fontSize: '11px',
     color: '#9ca3af',
     marginLeft: 'auto'
-  },
-  statusChangeLine: {
-    display: 'inline-flex',
-    alignSelf: 'flex-start',
-    padding: '4px 8px',
-    borderRadius: '999px',
-    backgroundColor: '#ffffff',
-    color: '#374151',
-    fontSize: '12px',
-    fontWeight: '600'
   },
   commentBody: {
     margin: 0,
     color: '#1f2937',
-    fontSize: '14px',
+    fontSize: '13px',
     lineHeight: 1.5,
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
@@ -887,16 +1079,28 @@ const styles = themeStyles({
     border: '1px solid #e5e7eb',
     borderRadius: '12px',
     backgroundColor: '#ffffff',
-    padding: '20px 20px 8px',
+    padding: '18px 20px 8px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '16px'
+    gap: '14px',
+    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+  },
+  sectionHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: '12px'
   },
   fieldsTitle: {
-    fontSize: '15px',
-    fontWeight: '600',
-    color: '#374151',
+    fontSize: '17px',
+    fontWeight: '700',
+    color: '#1f2937',
     margin: 0
+  },
+  sectionSubtitle: {
+    margin: '4px 0 0',
+    color: '#6b7280',
+    fontSize: '13px'
   },
   fieldsList: {
     display: 'flex',
@@ -905,40 +1109,63 @@ const styles = themeStyles({
   },
   fieldItem: {
     display: 'grid',
-    gridTemplateColumns: 'minmax(160px, 240px) minmax(0, 1fr)',
-    gap: '16px',
-    alignItems: 'start',
-    padding: '12px 0',
+    gridTemplateColumns: 'minmax(180px, 270px) minmax(0, 1fr)',
+    gap: '20px',
+    alignItems: 'center',
+    padding: '14px 0',
     borderBottom: '1px solid #f3f4f6'
   },
   fieldMeta: {
     display: 'flex',
     flexDirection: 'column',
+    justifyContent: 'center',
     gap: '3px'
   },
   fieldLabel: {
     fontSize: '13px',
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#1f2937',
     lineHeight: 1.4
   },
-  fieldType: {
+  fieldBadges: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '6px'
+  },
+  requiredBadge: {
     fontSize: '11px',
-    color: '#9ca3af',
-    fontWeight: '500'
+    color: '#92400e',
+    fontWeight: '700',
+    padding: '3px 7px',
+    borderRadius: '999px',
+    backgroundColor: '#fef3c7'
+  },
+  fieldDescription: {
+    color: '#6b7280',
+    fontSize: '12px',
+    lineHeight: 1.4
   },
   fieldValue: {
     fontSize: '14px',
-    color: '#374151',
+    color: '#1f2937',
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
     lineHeight: 1.5,
-    userSelect: 'text'
+    userSelect: 'text',
+    padding: '10px 12px',
+    borderRadius: '8px',
+    backgroundColor: '#f9fafb',
+    border: '1px solid #f3f4f6'
   },
   fieldValueBool: {
     fontSize: '14px',
     color: '#374151',
-    userSelect: 'text'
+    userSelect: 'text',
+    padding: '10px 12px',
+    borderRadius: '8px',
+    backgroundColor: '#f9fafb',
+    border: '1px solid #f3f4f6'
   },
   boolYes: {
     display: 'inline-flex',
@@ -957,6 +1184,7 @@ const styles = themeStyles({
     fontSize: '13px'
   },
   emptyText: {
+    margin: 0,
     fontSize: '14px',
     color: '#9ca3af'
   },
